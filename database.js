@@ -1,7 +1,7 @@
 const firebaseConfig = {
   apiKey: "AIzaSyArIgEB93kQ_2xfJAjkvGuKVhYqwoKpB54",
   authDomain: "pixel-world-db.firebaseapp.com",
-  databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com", // ТУТ МАЄ БУТИ ЦЕЙ РЯДОК!
+  databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com",
   projectId: "pixel-world-db",
   storageBucket: "pixel-world-db.firebasestorage.app",
   messagingSenderId: "987006631539",
