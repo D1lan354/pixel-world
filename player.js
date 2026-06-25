@@ -12,7 +12,6 @@ let zoom = 1.0, maxZoom = 15.0, minZoom = 0.01;
 let camera = { x: canvas.width/2 - 500, y: canvas.height/2 - 500 };
 let showGrid = true, soundVolume = 0.5, continuousDrawMode = false, isDragging = false, isMouseDown = false, startPan = { x: 0, y: 0 };
 let audioCtx = null, analyserNode = null;
-let currentUser = localStorage.getItem('pixel_user') || "Гравець";
 let clickCount = 0;
 
 let soundSettings = {
@@ -20,27 +19,6 @@ let soundSettings = {
     pipette: { wave: 'triangle', freq: 800, duration: 0.15, filter: 8000, formula: "Math.sin(t * 0.1) * Math.exp(-t * 0.05)" },
     switch: { wave: 'square', freq: 500, duration: 0.10, filter: 8000, formula: "0.2 * Math.sin(t * 0.03) * Math.exp(-t * 0.01)" }
 };
-
-if (document.getElementById('authScreen')) {
-    document.getElementById('authScreen').style.display = 'none';
-}
-document.getElementById('hudUser').innerText = currentUser;
-
-function handleAuth() {
-    const login = document.getElementById('authLogin').value.trim();
-    if(!login) return;
-    currentUser = login;
-    localStorage.setItem('pixel_user', login);
-    document.getElementById('authScreen').style.display = 'none';
-    document.getElementById('hudUser').innerText = login;
-    redrawCanvas();
-}
-
-function logout() {
-    localStorage.removeItem('pixel_user');
-    currentUser = "Гравець";
-    if(document.getElementById('authScreen')) document.getElementById('authScreen').style.display = 'flex';
-}
 
 function changeTheme(theme) {
     document.body.className = "";
@@ -118,7 +96,7 @@ function drawFormulaGraph() {
     fCtx.stroke();
 }
 
-// Генерація трилітерних кодів палітри
+// Палітра
 const alphabet = "abcdefghijklmnopqrstuvwxyz"; const palette = {}; 
 for (let r = 0; r < 26; r++) {
     for (let g = 0; g < 26; g++) {
@@ -149,7 +127,6 @@ picker.addEventListener('input', (e) => {
     document.getElementById('colorCode').innerText = nearest.code;
 });
 
-// Функція малювання — ТЕПЕР ЧИТАЄ ТІЛЬКИ З ОНЛАЙН ОБ'ЄКТА window.mapData
 function redrawCanvas() {
     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.save();
     ctx.translate(camera.x, camera.y); ctx.scale(zoom, zoom);
@@ -164,7 +141,6 @@ function redrawCanvas() {
         ctx.stroke();
     }
 
-    // Беремо дані з вікна, куди їх вантажить database.js
     if (window.mapData) {
         for (let key in window.mapData) {
             let coords = key.split('_');
@@ -177,7 +153,6 @@ function redrawCanvas() {
     ctx.restore();
 }
 
-// Даємо доступ файлу database.js викликати малювання
 window.redrawCanvas = redrawCanvas;
 
 function screenToGrid(clientX, clientY) {
@@ -201,6 +176,7 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('mousedown', (e) => {
+    if (!window.currentUser) return; // Блокуємо кліки, якщо не ввійшов
     if (e.button === 1 || e.button === 2) { isDragging = true; startPan.x = e.clientX - camera.x; startPan.y = e.clientY - camera.y; e.preventDefault(); return; }
     if (e.button === 0) {
         isMouseDown = true; const coords = screenToGrid(e.clientX, e.clientY);
@@ -236,8 +212,8 @@ window.addEventListener('keydown', (e) => {
     if (e.key === 'Shift') {
         e.preventDefault(); continuousDrawMode = !continuousDrawMode; playSoundFX('switch');
         const statusEl = document.getElementById('brushStatus');
-        if (continuousDrawMode) { statusEl.innerText = "Пензель (Затискання)"; statusEl.className = "status-on"; }
-        else { statusEl.innerText = "Крапка (Кліки)"; statusEl.className = "status-off"; }
+        if (continuousDrawMode) { statusEl.innerText = "Пензель"; statusEl.className = "status-on"; }
+        else { statusEl.innerText = "Крапка"; statusEl.className = "status-off"; }
     }
 });
 
