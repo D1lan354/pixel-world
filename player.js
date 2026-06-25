@@ -118,7 +118,7 @@ function drawFormulaGraph() {
     fCtx.stroke();
 }
 
-// Палітра
+// Генерація трилітерних кодів палітри
 const alphabet = "abcdefghijklmnopqrstuvwxyz"; const palette = {}; 
 for (let r = 0; r < 26; r++) {
     for (let g = 0; g < 26; g++) {
@@ -149,11 +149,11 @@ picker.addEventListener('input', (e) => {
     document.getElementById('colorCode').innerText = nearest.code;
 });
 
+// Функція малювання — ТЕПЕР ЧИТАЄ ТІЛЬКИ З ОНЛАЙН ОБ'ЄКТА window.mapData
 function redrawCanvas() {
     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.save();
     ctx.translate(camera.x, camera.y); ctx.scale(zoom, zoom);
     
-    // Червона рамка кордонів карти
     ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 4 / zoom;
     ctx.strokeRect(0, 0, MAP_WIDTH * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE);
 
@@ -164,16 +164,21 @@ function redrawCanvas() {
         ctx.stroke();
     }
 
-    // Отрисовка пікселів з бази даних
-    for (let key in mapData) {
-        let coords = key.split('_');
-        let x = parseInt(coords[0]), y = parseInt(coords[1]);
-        let code = mapData[key];
-        ctx.fillStyle = palette[code] ? palette[code].hex : "#ffffff";
-        ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+    // Беремо дані з вікна, куди їх вантажить database.js
+    if (window.mapData) {
+        for (let key in window.mapData) {
+            let coords = key.split('_');
+            let x = parseInt(coords[0]), y = parseInt(coords[1]);
+            let code = window.mapData[key];
+            ctx.fillStyle = palette[code] ? palette[code].hex : "#ffffff";
+            ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+        }
     }
     ctx.restore();
 }
+
+// Даємо доступ файлу database.js викликати малювання
+window.redrawCanvas = redrawCanvas;
 
 function screenToGrid(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
@@ -201,7 +206,12 @@ canvas.addEventListener('mousedown', (e) => {
         isMouseDown = true; const coords = screenToGrid(e.clientX, e.clientY);
         if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
             let key = coords.x + '_' + coords.y;
-            if (e.ctrlKey) { e.preventDefault(); let clickedCode = mapData[key] || "zzz"; picker.value = palette[clickedCode].hex; picker.dispatchEvent(new Event('input')); playSoundFX('pipette'); return; }
+            if (e.ctrlKey) { 
+                e.preventDefault(); 
+                let clickedCode = (window.mapData && window.mapData[key]) ? window.mapData[key] : "zzz"; 
+                picker.value = palette[clickedCode].hex; picker.dispatchEvent(new Event('input')); 
+                playSoundFX('pipette'); return; 
+            }
             sendPixel(coords.x, coords.y, selectedCode); playSoundFX('click');
             clickCount++; document.getElementById('hudClicks').innerText = clickCount;
         }
@@ -239,4 +249,4 @@ window.addEventListener('resize', () => { canvas.width = container.clientWidth; 
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 picker.value = "#ff0000"; picker.dispatchEvent(new Event('input'));
-setTimeout(redrawCanvas, 500);
+setTimeout(redrawCanvas, 600);
