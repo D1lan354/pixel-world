@@ -168,7 +168,7 @@ function redrawCanvas() {
         ctx.stroke();
     }
 
-    // Рендеримо дані мапи, що прийшли з бази (mapData береться з database.js)
+    // Рендеримо дані мапи, які підтягуються з database.js
     for (let key in mapData) {
         let coords = key.split('_');
         let x = parseInt(coords[0]), y = parseInt(coords[1]);
