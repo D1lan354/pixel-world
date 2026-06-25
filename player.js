@@ -8,11 +8,11 @@ canvas.width = container.clientWidth; canvas.height = container.clientHeight;
 
 const MAP_WIDTH = 2048; const MAP_HEIGHT = 2048; const PIXEL_SIZE = 16; 
 
-let zoom = 1.0, maxZoom = 15.0, minZoom = 0.05;
+let zoom = 1.0, maxZoom = 15.0, minZoom = 0.01;
 let camera = { x: canvas.width/2 - 500, y: canvas.height/2 - 500 };
 let showGrid = true, soundVolume = 0.5, continuousDrawMode = false, isDragging = false, isMouseDown = false, startPan = { x: 0, y: 0 };
 let audioCtx = null, analyserNode = null;
-let currentUser = localStorage.getItem('pixel_user') || null;
+let currentUser = localStorage.getItem('pixel_user') || "Гравець";
 let clickCount = 0;
 
 let soundSettings = {
@@ -21,10 +21,10 @@ let soundSettings = {
     switch: { wave: 'square', freq: 500, duration: 0.10, filter: 8000, formula: "0.2 * Math.sin(t * 0.03) * Math.exp(-t * 0.01)" }
 };
 
-if (currentUser) {
+if (document.getElementById('authScreen')) {
     document.getElementById('authScreen').style.display = 'none';
-    document.getElementById('hudUser').innerText = currentUser;
 }
+document.getElementById('hudUser').innerText = currentUser;
 
 function handleAuth() {
     const login = document.getElementById('authLogin').value.trim();
@@ -38,8 +38,8 @@ function handleAuth() {
 
 function logout() {
     localStorage.removeItem('pixel_user');
-    currentUser = null;
-    document.getElementById('authScreen').style.display = 'flex';
+    currentUser = "Гравець";
+    if(document.getElementById('authScreen')) document.getElementById('authScreen').style.display = 'flex';
 }
 
 function changeTheme(theme) {
@@ -118,7 +118,7 @@ function drawFormulaGraph() {
     fCtx.stroke();
 }
 
-// ПАЛІТРА CODES
+// Палітра
 const alphabet = "abcdefghijklmnopqrstuvwxyz"; const palette = {}; 
 for (let r = 0; r < 26; r++) {
     for (let g = 0; g < 26; g++) {
@@ -153,37 +153,34 @@ function redrawCanvas() {
     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.save();
     ctx.translate(camera.x, camera.y); ctx.scale(zoom, zoom);
     
-    ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 2;
+    // Червона рамка кордонів карти
+    ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 4 / zoom;
     ctx.strokeRect(0, 0, MAP_WIDTH * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE);
 
-    let startGridX = Math.max(0, Math.floor(-camera.x / (PIXEL_SIZE * zoom)));
-    let startGridY = Math.max(0, Math.floor(-camera.y / (PIXEL_SIZE * zoom)));
-    let endGridX = Math.min(MAP_WIDTH, Math.ceil((canvas.width - camera.x) / (PIXEL_SIZE * zoom)));
-    let endGridY = Math.min(MAP_HEIGHT, Math.ceil((canvas.height - camera.y) / (PIXEL_SIZE * zoom)));
-
-    if (showGrid && zoom > 0.15) { 
-        ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 0.3; ctx.beginPath();
-        for (let x = startGridX; x <= endGridX; x++) { ctx.moveTo(x * PIXEL_SIZE, startGridY * PIXEL_SIZE); ctx.lineTo(x * PIXEL_SIZE, endGridY * PIXEL_SIZE); }
-        for (let y = startGridY; y <= endGridY; y++) { ctx.moveTo(startGridX * PIXEL_SIZE, y * PIXEL_SIZE); ctx.lineTo(endGridX * PIXEL_SIZE, y * PIXEL_SIZE); }
+    if (showGrid && zoom > 0.08) { 
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 0.5 / zoom; ctx.beginPath();
+        for (let x = 0; x <= MAP_WIDTH; x += 4) { ctx.moveTo(x * PIXEL_SIZE, 0); ctx.lineTo(x * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE); }
+        for (let y = 0; y <= MAP_HEIGHT; y += 4) { ctx.moveTo(0, y * PIXEL_SIZE); ctx.lineTo(MAP_WIDTH * PIXEL_SIZE, y * PIXEL_SIZE); }
         ctx.stroke();
     }
 
-    // Рендеримо дані мапи, які підтягуються з database.js
+    // Отрисовка пікселів з бази даних
     for (let key in mapData) {
         let coords = key.split('_');
         let x = parseInt(coords[0]), y = parseInt(coords[1]);
-        if (x >= startGridX && x <= endGridX && y >= startGridY && y <= endGridY) {
-            let code = mapData[key];
-            ctx.fillStyle = palette[code] ? palette[code].hex : "#ffffff";
-            ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
-        }
+        let code = mapData[key];
+        ctx.fillStyle = palette[code] ? palette[code].hex : "#ffffff";
+        ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
     }
     ctx.restore();
 }
 
 function screenToGrid(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
-    return { x: Math.floor((clientX - rect.left - camera.x) / (PIXEL_SIZE * zoom)), y: Math.floor((clientY - rect.top - camera.y) / (PIXEL_SIZE * zoom)) };
+    return { 
+        x: Math.floor((clientX - rect.left - camera.x) / (PIXEL_SIZE * zoom)), 
+        y: Math.floor((clientY - rect.top - camera.y) / (PIXEL_SIZE * zoom)) 
+    };
 }
 
 canvas.addEventListener('mousemove', (e) => {
@@ -191,8 +188,7 @@ canvas.addEventListener('mousemove', (e) => {
     const coords = screenToGrid(e.clientX, e.clientY);
     if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
         document.getElementById('hudX').innerText = coords.x; document.getElementById('hudY').innerText = coords.y;
-        let key = coords.x + '_' + coords.y;
-        if (isMouseDown && continuousDrawMode && mapData[key] !== selectedCode) {
+        if (isMouseDown && continuousDrawMode) {
             sendPixel(coords.x, coords.y, selectedCode); playSoundFX('click');
             clickCount++; document.getElementById('hudClicks').innerText = clickCount;
         }
@@ -200,28 +196,25 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('mousedown', (e) => {
-    if(!currentUser) return;
-    if (e.button === 1) { isDragging = true; startPan.x = e.clientX - camera.x; startPan.y = e.clientY - camera.y; e.preventDefault(); return; }
+    if (e.button === 1 || e.button === 2) { isDragging = true; startPan.x = e.clientX - camera.x; startPan.y = e.clientY - camera.y; e.preventDefault(); return; }
     if (e.button === 0) {
         isMouseDown = true; const coords = screenToGrid(e.clientX, e.clientY);
         if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
             let key = coords.x + '_' + coords.y;
             if (e.ctrlKey) { e.preventDefault(); let clickedCode = mapData[key] || "zzz"; picker.value = palette[clickedCode].hex; picker.dispatchEvent(new Event('input')); playSoundFX('pipette'); return; }
-            if(mapData[key] !== selectedCode) {
-                sendPixel(coords.x, coords.y, selectedCode); playSoundFX('click');
-                clickCount++; document.getElementById('hudClicks').innerText = clickCount;
-            }
+            sendPixel(coords.x, coords.y, selectedCode); playSoundFX('click');
+            clickCount++; document.getElementById('hudClicks').innerText = clickCount;
         }
     }
 });
 
-window.addEventListener('mouseup', (e) => { if(e.button === 1) isDragging = false; if(e.button === 0) isMouseDown = false; });
+window.addEventListener('mouseup', (e) => { isDragging = false; isMouseDown = false; });
 
 canvas.addEventListener('wheel', (e) => {
     e.preventDefault(); const rect = canvas.getBoundingClientRect();
     let mX = e.clientX - rect.left, mY = e.clientY - rect.top;
     let gridX = (mX - camera.x) / zoom, gridY = (mY - camera.y) / zoom;
-    zoom = (e.deltaY < 0) ? Math.min(maxZoom, zoom * 1.15) : Math.max(minZoom, zoom / 1.15);
+    zoom = (e.deltaY < 0) ? Math.min(maxZoom, zoom * 1.2) : Math.max(minZoom, zoom / 1.2);
     camera.x = mX - gridX * zoom; camera.y = mY - gridY * zoom;
     document.getElementById('hudZoom').innerText = Math.round(zoom * 100) + "%"; redrawCanvas();
 });
@@ -239,10 +232,11 @@ window.addEventListener('keydown', (e) => {
 });
 
 document.getElementById('resetMapBtn').addEventListener('click', () => {
-    if(confirm("Очистити абсолютно всю онлайн карту для всіх гравців?")) { firebase.database().ref('multiplayer_map').remove(); }
+    if(confirm("Очистити абсолютно всю онлайн карту?")) { firebase.database().ref('multiplayer_map').remove(); }
 });
 
 window.addEventListener('resize', () => { canvas.width = container.clientWidth; canvas.height = container.clientHeight; redrawCanvas(); });
-canvas.addEventListener('contextmenu', (e) => { if (e.ctrlKey) e.preventDefault(); });
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 picker.value = "#ff0000"; picker.dispatchEvent(new Event('input'));
+setTimeout(redrawCanvas, 500);
