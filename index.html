@@ -55,6 +55,14 @@
             }
         });
 
+        function getPixelCoordinates(e) {
+    const rect = canvas.getBoundingClientRect();
+    // Рахуємо клік відносно канвасу, ділимо на поточний зум
+    const x = Math.floor((e.clientX - rect.left) / zoomLevel);
+    const y = Math.floor((e.clientY - rect.top) / zoomLevel);
+    return { x, y };
+}
+
         // Малювання з записом КОДУ
         canvas.addEventListener("mousedown", (e) => {
             const x = Math.floor(e.offsetX / zoom);
