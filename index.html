@@ -3,102 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Пікс Мапа v6.0 — Світ</title>
+    <title>Нікс Мапа v6.0 — Світ</title>
     
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            background-color: #121212;
+        body, html {
+            width: 100%;
+            height: 100%;
+            background-color: #0b0e14;
             color: #e0e0e0;
-            font-family: sans-serif;
-            display: flex;
-            height: 100vh;
+            font-family: 'Segoe UI', Roboto, sans-serif;
             overflow: hidden;
         }
         
-        /* Контейнер для карти (Він має ловити скрол!) */
-        .main-container {
-            flex: 1;
-            position: relative;
-            overflow: hidden; /* Скролбари не мають з'являтися */
-            background: #1a1a1a;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        /* Ігрове поле на весь екран */
+        #viewport {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            overflow: hidden;
+            cursor: crosshair;
+            background: #afe7f3; /* Колір води за замовчуванням */
         }
         
         canvas {
-            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            position: absolute;
             image-rendering: pixelated;
-            background-color: #afe7f3; /* Колір води */
-            cursor: crosshair;
-            transform-origin: 0 0; /* Важливо для зуму */
-            transition: transform 0.05s ease-out;
+            transform-origin: 0 0;
+            will-change: transform;
         }
 
-        /* Бічна панель меню */
+        /* Стильна плаваюча панель поверх карти */
         .sidebar {
-            width: 300px;
-            background: #181818;
-            border-left: 1px solid #282828;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 320px;
+            background: rgba(20, 24, 33, 0.92);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
             padding: 20px;
             display: flex;
             flex-direction: column;
             gap: 15px;
-            z-index: 10;
+            z-index: 100;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
 
-        h2 { font-size: 18px; color: #00ff88; text-transform: uppercase; }
-        .section { background: #202020; padding: 12px; border-radius: 8px; border: 1px solid #2c2c2c; }
-        .label-text { font-size: 11px; color: #aaa; text-transform: uppercase; display: block; margin-bottom: 5px; }
+        h2 { font-size: 18px; color: #00ff88; text-transform: uppercase; letter-spacing: 1px; }
+        .player-tag { color: #ffcc00; font-weight: bold; }
+        .section { background: rgba(255,255,255,0.04); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); }
+        .label-text { font-size: 11px; color: #8a99ad; text-transform: uppercase; display: block; margin-bottom: 5px; }
 
-        /* Кулдаун прогрес-бар */
+        /* Прогрес кулдауну */
         .cooldown-container {
             width: 100%;
-            background: #333;
-            height: 10px;
-            border-radius: 5px;
+            background: #222733;
+            height: 8px;
+            border-radius: 4px;
             overflow: hidden;
-            margin-top: 5px;
+            margin-top: 6px;
         }
         .cooldown-bar {
             width: 0%;
             height: 100%;
             background: linear-gradient(90deg, #00ff88, #00ffcc);
+            transition: width 0.1s linear;
         }
 
-        select {
+        select, input[type="color"] {
             width: 100%;
             padding: 10px;
-            background: #2a2a2a;
-            border: 1px solid #444;
+            background: #1b202e;
+            border: 1px solid #2e384d;
             color: #fff;
             border-radius: 6px;
             font-weight: bold;
-            cursor: pointer;
+            outline: none;
         }
+        input[type="color"] { height: 45px; cursor: pointer; padding: 5px; }
     </style>
 </head>
 <body>
 
-    <div class="main-container" id="viewport">
+    <div id="viewport">
         <canvas id="pixelCanvas"></canvas>
     </div>
 
     <div class="sidebar">
         <h2>Нікс Мапа v6.0</h2>
+        <div style="font-size: 13px;">Гравець: <span class="player-tag">Dylan</span></div>
         
         <div class="section">
-            <div>Координати: X: <span id="coordX">0</span> | Y: <span id="coordY">0</span></div>
-            <div>Зум: <span id="zoomVal">100%</span></div>
+            <span class="label-text">Навігація</span>
+            <div>Координати: X: <span id="coordX" style="color:#00ff88;">0</span> | Y: <span id="coordY" style="color:#00ff88;">0</span></div>
+            <div>Масштаб: <span id="zoomVal" style="color:#00ffcc;">100%</span></div>
         </div>
 
         <div class="section">
             <span class="label-text">Перегрів (Кулдаун)</span>
-            <div id="cooldownTimerText">0.0с / 300с</div>
+            <div id="cooldownTimerText" style="font-weight: bold;">0.0с / 300с</div>
             <div class="cooldown-container">
                 <div class="cooldown-bar" id="cooldownProgressBar"></div>
             </div>
@@ -113,15 +123,15 @@
         </div>
         
         <div class="section">
-            <span class="label-text">Поточний колір пензля</span>
+            <span class="label-text">Кастомізація кольору</span>
             <input type="color" id="nativeColorPicker" value="#a65d5d">
-            <p style="margin-top:5px; font-size:12px;">Код: <span id="colorCodeText" style="color:#00ffcc;">rhh</span></p>
+            <p style="margin-top:6px; font-size:12px;">Код у базі: <span id="colorCodeText" style="color:#00ffcc; font-weight:bold;">rhh</span></p>
         </div>
     </div>
 
     <script>
         // ===================================================
-        // 1. КОНФІГУРАЦІЯ FIREBASE (Впиши сюди свій databaseURL!)
+        // 1. ІНІЦІАЛІЗАЦІЯ БАЗИ ДАНИХ
         // ===================================================
         const firebaseConfig = {
             databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com"
@@ -129,9 +139,6 @@
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // ===================================================
-        // 2. НАЛАШТУВАННЯ КАНВАСУ ТА СТАНУ
-        // ===================================================
         const canvas = document.getElementById("pixelCanvas");
         const ctx = canvas.getContext("2d");
         const viewport = document.getElementById("viewport");
@@ -140,36 +147,56 @@
         canvas.width = MAP_SIZE;
         canvas.height = MAP_SIZE;
 
+        // Позиціонування камери
+        let zoomLevel = 0.5; // Старт з 50%, щоб бачити більше карти
+        let posX = (window.innerWidth - MAP_SIZE * zoomLevel) / 2;
+        let posY = (window.innerHeight - MAP_SIZE * zoomLevel) / 2;
+
         let mapData = {}; 
-        let zoomLevel = 1.0;
-        let currentColorCode = "rhh"; // Дефолтний колір гравця
+        let currentColorCode = "rhh"; 
         let currentCooldown = 0;
 
+        // Карта базових кольорів
         const colorPaletteMap = {
             "aaa": "#ffffff", // Суша
             "zaa": "#afe7f3", // Вода
-            "rhh": "#a65d5d"  // Гравець
+            "rhh": "#a65d5d"  // Твій кастомний колір
         };
 
-        // Переклад кольору в код
+        function updateTransform() {
+            canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${zoomLevel})`;
+            document.getElementById("zoomVal").innerText = `${Math.round(zoomLevel * 100)}%`;
+        }
+        updateTransform();
+
+        // ===================================================
+        // 2. ДИНАМІЧНА ПАЛІТРА кольорів
+        // ===================================================
         document.getElementById('nativeColorPicker').addEventListener('input', (e) => {
             let hex = e.target.value.toLowerCase();
-            if(hex === "#ffffff") currentColorCode = "aaa";
-            else if(hex === "#afe7f3") currentColorCode = "zaa";
-            else currentColorCode = "rhh";
+            
+            if (hex === "#ffffff") currentColorCode = "aaa";
+            else if (hex === "#afe7f3") currentColorCode = "zaa";
+            else {
+                currentColorCode = "rhh";
+                colorPaletteMap["rhh"] = hex; // На льоту міняємо HEX для коду rhh
+            }
             document.getElementById('colorCodeText').innerText = currentColorCode;
         });
 
         // ===================================================
-        // 3. ЗАВАНТАЖЕННЯ КАРТИ ТА ОНЛАЙН СИНХРОНІЗАЦІЯ
+        // 3. СИНХРОНІЗАЦІЯ З БАЗОЮ (БЕЗ ПЕРЕЗАПИСУ СТАРОГО)
         // ===================================================
+        ctx.fillStyle = "#afe7f3"; // Стартове тло
+        ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
+
+        console.log("Завантаження світу...");
         database.ref().once('value').then((snapshot) => {
             const data = snapshot.val();
             if (data) {
                 mapData = data;
                 renderFullMap();
             }
-            // Вмикаємо онлайн-слухач тільки ПІСЛЯ першого завантаження
             listenForLiveUpdates();
         });
 
@@ -186,8 +213,6 @@
         }
 
         function renderFullMap() {
-            ctx.fillStyle = colorPaletteMap["zaa"];
-            ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
             for (let y in mapData) {
                 for (let x in mapData[y]) {
                     drawPixel(parseInt(x), parseInt(y), mapData[y][x]);
@@ -196,20 +221,74 @@
         }
 
         function drawPixel(x, y, colorCode) {
-            ctx.fillStyle = colorPaletteMap[colorCode] || "#afe7f3";
+            ctx.fillStyle = colorPaletteMap[colorCode] || colorCode; 
             ctx.fillRect(x, y, 1, 1);
         }
 
         // ===================================================
-        // 4. ФІКС КЛІКУ ТА ПЕНЗЛЯ (ЗАХИСТ ВІД ОДНАКОВОГО КОЛЬОРУ)
+        // 4. ОНОВЛЕНИЙ РОЗУМНИЙ ЗУМ (ВІДНОСНО МИШКИ)
         // ===================================================
-        canvas.addEventListener("mousedown", (event) => {
-            if (currentCooldown >= 300) return;
+        viewport.addEventListener("wheel", (event) => {
+            event.preventDefault();
 
-            const rect = canvas.getBoundingClientRect();
-            // Розрахунок координат з фіксом під ЗУМ
-            const clickX = Math.floor((event.clientX - rect.left) / zoomLevel);
-            const clickY = Math.floor((event.clientY - rect.top) / zoomLevel);
+            const zoomSpeed = 0.1;
+            const mouseX = event.clientX;
+            const mouseY = event.clientY;
+
+            // Координати мишки на самому канвасі до зуму
+            const canvasX = (mouseX - posX) / zoomLevel;
+            const canvasY = (mouseY - posY) / zoomLevel;
+
+            if (event.deltaY < 0) {
+                zoomLevel += zoomLevel * zoomSpeed; // Плавне наближення
+            } else {
+                zoomLevel -= zoomLevel * zoomSpeed; // Плавне віддалення
+            }
+
+            // Обмеження, щоб не втратити карту
+            if (zoomLevel < 0.15) zoomLevel = 0.15;
+            if (zoomLevel > 20.0) zoomLevel = 20.0;
+
+            // Коригуємо позицію екрану, щоб зумило в точку миші
+            posX = mouseX - canvasX * zoomLevel;
+            posY = mouseY - canvasY * zoomLevel;
+
+            updateTransform();
+        }, { passive: false });
+
+        // Перетягування карти мишкою (затиснувши коліщатко або правий клік)
+        let isDragging = false;
+        let startX, startY;
+
+        viewport.addEventListener("mousedown", (e) => {
+            if (e.button === 1 || e.button === 2 || e.shiftKey) { // Коліщатко, ПКМ або Shift+ЛКМ
+                isDragging = true;
+                startX = e.clientX - posX;
+                startY = e.clientY - posY;
+                e.preventDefault();
+            }
+        });
+
+        window.addEventListener("mousemove", (e) => {
+            if (isDragging) {
+                posX = e.clientX - startX;
+                posY = e.clientY - startY;
+                updateTransform();
+            }
+        });
+
+        window.addEventListener("mouseup", () => isDragging = false);
+        viewport.addEventListener("contextmenu", e => e.preventDefault()); // Вимикаємо контекстне меню ПКМ
+
+        // ===================================================
+        // 5. МАЛЮВАННЯ ТА БЛОКУВАННЯ ДУБЛІВ
+        // ===================================================
+        viewport.addEventListener("mousedown", (event) => {
+            if (event.button !== 0 || isDragging || currentCooldown >= 300) return; // Тільки ЛКМ
+
+            // Рахуємо точний піксель
+            const clickX = Math.floor((event.clientX - posX) / zoomLevel);
+            const clickY = Math.floor((event.clientY - posY) / zoomLevel);
 
             const brushSize = parseInt(document.getElementById("brushSizeSelect").value) || 1;
             const halfBrush = Math.floor(brushSize / 2);
@@ -223,70 +302,48 @@
 
                     if (tx >= 0 && tx < MAP_SIZE && ty >= 0 && ty < MAP_SIZE) {
                         const existingColor = (mapData[ty] && mapData[ty][tx]) ? mapData[ty][tx] : "zaa";
+                        
+                        // Поточний реальний колір, який ми пишемо
+                        let activeColor = currentColorCode === "rhh" ? colorPaletteMap["rhh"] : currentColorCode;
 
-                        // !!! ФІКС БАГУ !!! Якщо колір збігається — ігноруємо цей піксель
-                        if (existingColor !== currentColorCode) {
+                        if (existingColor !== activeColor) {
                             if (!mapData[ty]) mapData[ty] = {};
-                            mapData[ty][tx] = currentColorCode;
-                            drawPixel(tx, ty, currentColorCode);
+                            mapData[ty][tx] = activeColor;
+                            drawPixel(tx, ty, activeColor);
 
                             // Шлемо в Firebase
-                            database.ref(`${ty}/${tx}`).set(currentColorCode);
+                            database.ref(`${ty}/${tx}`).set(activeColor);
                             pixelsChanged++;
                         }
                     }
                 }
             }
 
-            // Нараховуємо кулдаун тільки за змінені блоки!
             if (pixelsChanged > 0) {
-                currentCooldown += pixelsChanged * 2.0; 
+                currentCooldown += pixelsChanged * 1.5; // +1.5с за піксель
                 if (currentCooldown > 300) currentCooldown = 300;
                 updateCooldownUI();
             }
         });
 
-        // ===================================================
-        // 5. ЗАЛІЗОБЕТОННИЙ ЗУМ (КОЛІЩАТКО)
-        // ===================================================
-        viewport.addEventListener("wheel", (event) => {
-            event.preventDefault(); // Забороняємо скрол всього сайту
-
-            const zoomSpeed = 0.1;
-            if (event.deltaY < 0) {
-                zoomLevel += zoomSpeed; // Вперед — збільшуємо
-            } else {
-                zoomLevel -= zoomSpeed; // Назад — зменшуємо
-            }
-
-            // Обмеження зуму: мінімум 40%, максимум 1200%
-            if (zoomLevel < 0.4) zoomLevel = 0.4;
-            if (zoomLevel > 12.0) zoomLevel = 12.0;
-
-            // Застосовуємо трансформацію до стилів
-            canvas.style.transform = `scale(${zoomLevel})`;
-            document.getElementById("zoomVal").innerText = `${Math.round(zoomLevel * 100)}%`;
-        }, { passive: false });
-
-        // Координати миші
-        canvas.addEventListener('mousemove', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const x = Math.floor((e.clientX - rect.left) / zoomLevel);
-            const y = Math.floor((e.clientY - rect.top) / zoomLevel);
+        // Трекер координат під мишкою
+        viewport.addEventListener('mousemove', (e) => {
+            const x = Math.floor((e.clientX - posX) / zoomLevel);
+            const y = Math.floor((e.clientY - posY) / zoomLevel);
             if(x >= 0 && x < MAP_SIZE && y >= 0 && y < MAP_SIZE) {
                 document.getElementById('coordX').innerText = x;
                 document.getElementById('coordY').innerText = y;
             }
         });
 
-        // Система охолодження кулдауну
+        // Кулдаун
         setInterval(() => {
             if (currentCooldown > 0) {
-                currentCooldown -= 0.5;
+                currentCooldown -= 0.2;
                 if (currentCooldown < 0) currentCooldown = 0;
                 updateCooldownUI();
             }
-        }, 100);
+        }, 200);
 
         function updateCooldownUI() {
             document.getElementById("cooldownTimerText").innerText = `${currentCooldown.toFixed(1)}с / 300с`;
