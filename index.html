@@ -18,7 +18,7 @@
         appId: "YOUR_APP_ID"
       };
       firebase.initializeApp(firebaseConfig);
-      window.currentUser = "Гравець"; 
+      window.currentUser = "Dylan"; 
     </script>
 </head>
 <body>
@@ -54,9 +54,18 @@
             </div>
 
             <div class="section">
-                <div class="section-title">ЗВУК F(T)</div>
-                <canvas id="visualizerCanvas" width="220" height="30" style="background:#111; border-radius:4px; margin-bottom:5px; border:1px solid #333;"></canvas>
-                <canvas id="formulaCanvas" width="220" height="30" style="background:#111; border-radius:4px; border:1px solid #333;"></canvas>
+                <div class="section-title">КОД ЗВУКУ F(T)</div>
+                <textarea id="soundFormulaInput" rows="2" style="width:100%; background:#111; color:#00ff00; border:1px solid #444; border-radius:4px; font-family:monospace; font-size:11px; resize:none; box-sizing:border-box; padding:4px; margin-bottom:6px;">Math.sin(t * 0.2) * Math.exp(-t * 0.04)</textarea>
+                
+                <div style="margin-bottom:8px;">
+                    <label class="file-upload-btn">
+                        <input type="file" id="audioConverterInput" accept="audio/*" style="display:none;">
+                        Завантажити & Конвертувати аудіо
+                    </label>
+                </div>
+
+                <canvas id="visualizerCanvas" width="220" height="30" style="background:#111; border-radius:4px; margin-bottom:5px; border:1px solid #333; display:block;"></canvas>
+                <canvas id="formulaCanvas" width="220" height="30" style="background:#111; border-radius:4px; border:1px solid #333; display:block;"></canvas>
             </div>
 
             <div class="section">
