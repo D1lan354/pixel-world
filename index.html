@@ -2,73 +2,76 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>Pix Universe - Core</title>
+    <title>Нікс Мапа v6.0 — Виправлено</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #121212; }
+        body, html { margin: 0; width: 100%; height: 100%; background: #0b0e14; overflow: hidden; }
         #viewport { width: 100vw; height: 100vh; position: relative; cursor: crosshair; }
-        #canvasWrapper { position: absolute; transform-origin: 0 0; }
-        /* Границі пікселів (сітка) */
-        .pixel-grid { 
-            position: absolute; pointer-events: none; 
-            border: 0.5px solid rgba(255,255,255,0.1); 
+        /* Основний canvas */
+        #pixelCanvas { position: absolute; transform-origin: 0 0; image-rendering: pixelated; }
+        /* Шар сітки (границі пікселів) */
+        #gridLayer { 
+            position: absolute; pointer-events: none; transform-origin: 0 0;
+            background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 1px 1px;
             display: none; 
         }
     </style>
 </head>
 <body>
-
-<div id="viewport">
-    <div id="canvasWrapper">
-        <canvas id="pixelCanvas" width="2048" height="2048"></canvas>
+    <div id="viewport">
+        <div id="gridLayer"></div>
+        <canvas id="pixelCanvas"></canvas>
     </div>
-</div>
 
-<script>
-    // 1. Конфіг Firebase
-    const firebaseConfig = { 
-        databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com" 
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const mapRef = db.ref('multiplayer_map');
+    <script>
+        const firebaseConfig = { databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const mapRef = db.ref('multiplayer_map');
 
-    const canvas = document.getElementById("pixelCanvas");
-    const ctx = canvas.getContext("2d");
-    let mapData = {};
+        const canvas = document.getElementById("pixelCanvas");
+        const ctx = canvas.getContext("2d");
+        const grid = document.getElementById("gridLayer");
+        const MAP_SIZE = 2048;
+        canvas.width = canvas.height = MAP_SIZE;
+        grid.style.width = grid.style.height = `${MAP_SIZE}px`;
 
-    // 2. Логіка малювання та збереження
-    function draw(x, y, colorCode) {
-        ctx.fillStyle = colorCode; // Тут додаси маппінг своїх кодів
-        ctx.fillRect(x, y, 1, 1);
-    }
+        let zoom = 1.0;
+        const palette = { "aaa": "#ffffff", "zaa": "#afe7f3", "rhh": "#a65d5d" };
 
-    // Завантаження з бази
-    mapRef.on('value', (snapshot) => {
-        mapData = snapshot.val() || {};
-        for (let y in mapData) {
-            for (let x in mapData[y]) {
-                draw(parseInt(x), parseInt(y), mapData[y][x]);
+        // Завантаження
+        mapRef.on('value', (snap) => {
+            const data = snap.val() || {};
+            ctx.fillStyle = palette["zaa"];
+            ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
+            for (let y in data) {
+                for (let x in data[y]) {
+                    ctx.fillStyle = palette[data[y][x]] || "#000";
+                    ctx.fillRect(x, y, 1, 1);
+                }
             }
-        }
-    });
+        });
 
-    // Збереження в базу (короткий код)
-    function savePixel(x, y, code) {
-        db.ref(`multiplayer_map/${y}/${x}`).set(code);
-    }
+        // Малювання з записом КОДУ
+        canvas.addEventListener("mousedown", (e) => {
+            const x = Math.floor(e.offsetX / zoom);
+            const y = Math.floor(e.offsetY / zoom);
+            // Записуємо КОД, а не колір
+            db.ref(`multiplayer_map/${y}/${x}`).set("rhh");
+        });
 
-    // 3. Сітка (границі)
-    // При зумі > 10, показуємо границі пікселів
-    function updateGridVisibility(zoom) {
-        const grid = document.getElementById('canvasWrapper');
-        if (zoom > 10) {
-            grid.style.outline = "1px solid rgba(255,255,255,0.05)";
-        } else {
-            grid.style.outline = "none";
-        }
-    }
-</script>
+        // Вмикання сітки при зумі > 5
+        window.addEventListener("wheel", (e) => {
+            zoom += e.deltaY > 0 ? -0.1 : 0.1;
+            zoom = Math.max(0.5, Math.min(zoom, 20));
+            canvas.style.transform = `scale(${zoom})`;
+            grid.style.transform = `scale(${zoom})`;
+            grid.style.display = zoom > 5 ? 'block' : 'none';
+            grid.style.backgroundSize = `${zoom}px ${zoom}px`;
+        });
+    </script>
 </body>
 </html>
