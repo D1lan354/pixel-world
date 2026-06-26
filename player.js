@@ -1,69 +1,65 @@
-const firebaseConfig = { databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com" };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-const mapRef = db.ref('multiplayer_map');
+// ==========================================
+// ВИПРАВЛЕНА ЛОГІКА КОРДИНАТ ТА ЗУМУ
+// ==========================================
 
-const canvas = document.getElementById("pixelCanvas");
-const ctx = canvas.getContext("2d");
-const grid = document.getElementById("gridLayer");
-const MAP_SIZE = 2048;
-canvas.width = canvas.height = MAP_SIZE;
-grid.style.width = grid.style.height = `${MAP_SIZE}px`;
+// Функція для отримання правильних координат пікселя
+function getMousePos(canvas, event) {
+    const rect = canvas.getBoundingClientRect();
+    // Рахуємо X та Y відносно того, де зараз початок канвасу (rect.left/top)
+    // і ділимо на поточний zoom
+    const x = Math.floor((event.clientX - rect.left) / zoomLevel);
+    const y = Math.floor((event.clientY - rect.top) / zoomLevel);
+    return { x, y };
+}
 
-let zoomLevel = 1.0;
-let mapData = {};
-let colorPaletteMap = { "aaa": "#ffffff", "zaa": "#afe7f3", "rhh": "#a65d5d" };
+// Оновлена функція обробки кліку
+function handleCanvasClick(event) {
+    if (currentCooldown >= 300) return;
 
-// 1. Завантаження та відображення
-mapRef.on('value', (snapshot) => {
-    mapData = snapshot.val() || {};
-    renderMap();
-});
+    const pos = getMousePos(canvas, event);
+    
+    // Перевірка меж (щоб не ставило за кілометр)
+    if (pos.x < 0 || pos.y < 0 || pos.x >= MAP_SIZE || pos.y >= MAP_SIZE) return;
 
-function renderMap() {
-    ctx.fillStyle = colorPaletteMap["zaa"];
-    ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
-    for (let y in mapData) {
-        for (let x in mapData[y]) {
-            drawPixel(parseInt(x), parseInt(y), mapData[y][x]);
+    const brushSize = parseInt(brushSelect.value) || 1;
+    const half = Math.floor(brushSize / 2);
+
+    for (let dy = -half; dy <= half; dy++) {
+        for (let dx = -half; dx <= half; dx++) {
+            const tx = pos.x + dx;
+            const ty = pos.y + dy;
+
+            if (tx >= 0 && tx < MAP_SIZE && ty >= 0 && ty < MAP_SIZE) {
+                // Прямий запис у базу з ключем y/x
+                database.ref(`multiplayer_map/${ty}/${tx}`).set(currentColorCode);
+                
+                // Локальне малювання
+                if (!mapData[ty]) mapData[ty] = {};
+                mapData[ty][tx] = currentColorCode;
+                drawPixel(tx, ty, currentColorCode);
+            }
         }
     }
 }
 
-function drawPixel(x, y, colorCode) {
-    ctx.fillStyle = colorPaletteMap[colorCode] || colorCode;
-    ctx.fillRect(x, y, 1, 1);
-}
-
-// 2. Логіка сітки (границь)
-function updateGrid() {
-    if (zoomLevel > 10) {
-        grid.style.display = 'block';
-        grid.style.backgroundSize = `${zoomLevel}px ${zoomLevel}px`;
-        grid.style.transform = canvas.style.transform;
-    } else {
-        grid.style.display = 'none';
-    }
-}
-
-// 3. Збереження пікселя в базу (викликай це при кліку)
-function savePixel(x, y, colorCode) {
-    // Зберігаємо код у базу
-    db.ref(`multiplayer_map/${y}/${x}`).set(colorCode);
+// Оновлений зум, щоб він працював відносно центру курсора
+function handleWheelZoom(event) {
+    event.preventDefault();
     
-    // Якщо це новий кастомний колір, можна додати його в локальний словник для відображення
-    if (!colorPaletteMap[colorCode]) {
-        colorPaletteMap[colorCode] = colorCode; // Якщо прийшов hex
-    }
-}
+    const mouseX = event.clientX - canvas.getBoundingClientRect().left;
+    const mouseY = event.clientY - canvas.getBoundingClientRect().top;
 
-// Слухач оновлень з бази (для синхронізації між гравцями)
-mapRef.on('child_changed', (snapshot) => {
-    const y = snapshot.key;
-    const row = snapshot.val();
-    for (let x in row) {
-        mapData[y] = mapData[y] || {};
-        mapData[y][x] = row[x];
-        drawPixel(parseInt(x), parseInt(y), row[x]);
-    }
-});
+    const zoomSpeed = 0.1;
+    const delta = event.deltaY > 0 ? -zoomSpeed : zoomSpeed;
+    
+    const newZoom = Math.min(Math.max(zoomLevel + delta, 0.5), 15.0);
+    
+    // Центрування зуму
+    posX -= (mouseX / zoomLevel) * delta;
+    posY -= (mouseY / zoomLevel) * delta;
+    
+    zoomLevel = newZoom;
+    
+    canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${zoomLevel})`;
+    document.getElementById("zoomVal").innerText = `${Math.round(zoomLevel * 100)}%`;
+}
