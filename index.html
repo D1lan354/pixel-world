@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Пікс Мапа v6.0</title>
     <link rel="stylesheet" href="style.css">
+    
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script>
@@ -15,9 +16,12 @@
         projectId: "YOUR_PROJECT_ID",
         storageBucket: "YOUR_STORAGE_BUCKET",
         messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-        appId: "YOUR_APP_ID"
+        databaseURL: "YOUR_DATABASE_URL"
       };
-      firebase.initializeApp(firebaseConfig);
+      // Перевірка ініціалізації, щоб не було помилок у консолі
+      if (typeof firebase !== 'undefined' && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+        firebase.initializeApp(firebaseConfig);
+      }
       window.currentUser = "Dylan"; 
     </script>
 </head>
@@ -28,7 +32,7 @@
             <div class="brand-title">Пікс Мапа v6.0</div>
 
             <div class="section">
-                <div class="section-title">НАЛАШТУВАННЯ</div>
+                <div class="section-title">Налаштування</div>
                 <div class="control-group">
                     <label>Відображати сітку:</label>
                     <input type="checkbox" id="gridCheckbox" checked>
@@ -46,21 +50,21 @@
             </div>
 
             <div class="section">
-                <div class="section-title">ПЕРЕГРІВ (КУЛДАУН)</div>
-                <div style="font-size:11px; margin-bottom:5px; color:#aaa;">Таймер: <span id="cooldownTimer" style="color:#fff; font-weight:bold;">0.0с</span></div>
+                <div class="section-title">Перегрів (кулдаун)</div>
+                <div style="font-size:11px; margin-bottom:5px; color:#aaa;">Таймер: <span id="cooldownTimer" style="color:#fff; font-weight:bold;">0.0с / 300с</span></div>
                 <div class="progress-bg">
                     <div id="cooldownBar"></div>
                 </div>
             </div>
 
             <div class="section">
-                <div class="section-title">КОД ЗВУКУ F(T)</div>
+                <div class="section-title">Код звуку f(t)</div>
                 <textarea id="soundFormulaInput" rows="2" style="width:100%; background:#111; color:#00ff00; border:1px solid #444; border-radius:4px; font-family:monospace; font-size:11px; resize:none; box-sizing:border-box; padding:4px; margin-bottom:6px;">Math.sin(t * 0.2) * Math.exp(-t * 0.04)</textarea>
                 
                 <div style="margin-bottom:8px;">
                     <label class="file-upload-btn">
                         <input type="file" id="audioConverterInput" accept="audio/*" style="display:none;">
-                        Завантажити & Конвертувати аудіо
+                        Завантажити & конвертувати аудіо
                     </label>
                 </div>
 
@@ -69,7 +73,7 @@
             </div>
 
             <div class="section">
-                <div class="section-title">ОЛІВЕЦЬ ТА КОЛІР</div>
+                <div class="section-title">Олівець та колір</div>
                 <div class="control-group">
                     <label>Розмір пензля:</label>
                     <select id="brushSizeSelector">
@@ -87,8 +91,8 @@
                 </div>
             </div>
 
-            <div class="section player-status-section">
-                <div class="section-title">ДАНІ ГРАВЦЯ</div>
+            <div class="section">
+                <div class="section-title">Дані гравця</div>
                 <div style="font-size:13px; margin-bottom:4px;">Гравець: <span id="hudUser" style="color:#ffcc00; font-weight:bold;">Dylan</span></div>
                 <div class="hud-grid">
                     <div>X: <span id="hudX" style="color:#00ffaa;">0</span></div>
