@@ -17,18 +17,18 @@ const mapRef = db.ref('multiplayer_map');
 
 window.mapData = {};
 
-// Автоматично стежимо: зайшов користувач чи вийшов
+// ГЛОБАЛЬНИЙ СЛУХАЧ СЕСІЇ КОРИСТУВАЧА
 auth.onAuthStateChanged((user) => {
     const authScreen = document.getElementById('authScreen');
     const hudUser = document.getElementById('hudUser');
     
     if (user) {
-        // Користувач увійшов
+        // Користувач успішно увійшов
         if(authScreen) authScreen.style.display = 'none';
-        if(hudUser) hudUser.innerText = user.email;
+        if(hudUser) hudUser.innerText = user.email.split('@')[0]; // Показуємо логін до @gmail.com
         window.currentUser = user;
     } else {
-        // Користувач не авторизований
+        // Користувач вийшов або не авторизований
         if(authScreen) authScreen.style.display = 'flex';
         if(hudUser) hudUser.innerText = '—';
         window.currentUser = null;
@@ -40,10 +40,10 @@ auth.onAuthStateChanged((user) => {
 function handleRegister() {
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value.trim();
-    if(!email || !password) return alert("Заповни всі поля!");
+    if(!email || !password) return alert("Заповни пошту і пароль!");
     
     auth.createUserWithEmailAndPassword(email, password)
-        .then((userCredential) => { alert("Реєстрація успішна!"); })
+        .then(() => { alert("Реєстрація успішна! Ви увійшли."); })
         .catch((error) => { alert("Помилка реєстрації: " + error.message); });
 }
 
@@ -51,18 +51,24 @@ function handleRegister() {
 function handleLogin() {
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value.trim();
-    if(!email || !password) return alert("Заповни всі поля!");
+    if(!email || !password) return alert("Введи пошту і пароль!");
     
     auth.signInWithEmailAndPassword(email, password)
         .catch((error) => { alert("Помилка входу: " + error.message); });
 }
 
-// ФУНКЦІЯ ВИХОДУ
+// ФУНКЦІЯ ВИХОДУ (Ось вона тепер залізобетонно працює!)
 function handleLogout() {
-    auth.signOut();
+    auth.signOut().then(() => {
+        // Очищаємо поля вводу, щоб старі дані не стирчали
+        document.getElementById('authEmail').value = "";
+        document.getElementById('authPassword').value = "";
+    }).catch((err) => {
+        console.error("Помилка при виході:", err);
+    });
 }
 
-// Синхронізація малювання в реальному часі
+// Реал-тайм синхронізація
 mapRef.on('value', (snapshot) => {
     window.mapData = snapshot.val() || {};
     if (typeof window.redrawCanvas === "function") {
@@ -71,7 +77,7 @@ mapRef.on('value', (snapshot) => {
 });
 
 function sendPixel(x, y, colorCode) {
-    if(!window.currentUser) return; // Гості не можуть малювати
+    if(!window.currentUser) return; // Незалогінені не малюють
     let key = x + '_' + y;
     db.ref('multiplayer_map/' + key).set(colorCode);
 }
