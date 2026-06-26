@@ -1,302 +1,152 @@
-const canvas = document.getElementById('mapCanvas');
-const ctx = canvas.getContext('2d');
-const container = document.getElementById('canvasContainer');
-const vCanvas = document.getElementById('visualizerCanvas'); const vCtx = vCanvas.getContext('2d');
-const fCanvas = document.getElementById('formulaCanvas'); const fCtx = fCanvas.getContext('2d');
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Pixel Map Engine v6.0 — Фікс інтерфейсу</title>
+    <style>
+        :root { --bg-main: #1a1a1a; --bg-panel: #2a2a2a; --bg-sidebar: #222; --text-color: #fff; --accent: #00ff00; }
+        body { background: var(--bg-main); color: var(--text-color); font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 10px; margin: 0; user-select: none; }
+        h1 { margin-top: 5px; margin-bottom: 2px; font-size: 22px; text-shadow: 0 0 5px var(--accent); }
+        .hint { color: #888; font-size: 12px; margin-bottom: 10px; }
+        .hotkey { color: #ffcc00; font-weight: bold; }
 
-canvas.width = container.clientWidth; canvas.height = container.clientHeight;
+        #authScreen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 100; }
+        .auth-box { background: #222; padding: 25px; border-radius: 12px; border: 2px solid #444; width: 320px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 0 20px rgba(0,255,0,0.2); color: #fff; }
+        .auth-box h2 { margin: 0; font-size: 18px; text-align: center; color: var(--accent); }
+        .auth-box input { background: #111; border: 1px solid #555; padding: 8px; color: #fff; border-radius: 4px; }
+        .auth-box button { background: #333; border: 1px solid #666; color: #fff; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .auth-box button:hover { background: var(--accent); color: #000; }
 
-const MAP_WIDTH = 2048; const MAP_HEIGHT = 2048; const PIXEL_SIZE = 16; 
-
-let zoom = 1.0, maxZoom = 15.0, minZoom = 0.01;
-let camera = { x: canvas.width/2 - 500, y: canvas.height/2 - 500 };
-let showGrid = true, soundVolume = 0.5, continuousDrawMode = false, isDragging = false, isMouseDown = false, startPan = { x: 0, y: 0 };
-let audioCtx = null, analyserNode = null;
-let clickCount = 0;
-
-// Логіка Кулдауну
-let cooldownTime = 0.0; 
-const MAX_COOLDOWN = 300.0; // 5 хвилин
-let isCooldownBlocked = false;
-
-let soundSettings = {
-    click: { wave: 'sine', freq: 400, duration: 0.15, filter: 8000, formula: "Math.sin(t * 0.05) * Math.exp(-t * 0.02)" },
-    pipette: { wave: 'triangle', freq: 800, duration: 0.15, filter: 8000, formula: "Math.sin(t * 0.1) * Math.exp(-t * 0.05)" },
-    switch: { wave: 'square', freq: 500, duration: 0.10, filter: 8000, formula: "0.2 * Math.sin(t * 0.03) * Math.exp(-t * 0.01)" }
-};
-
-function changeTheme(theme) {
-    document.body.className = "";
-    if(theme !== 'dark') document.body.classList.add('theme-' + theme);
-}
-window.changeTheme = changeTheme;
-
-function initAudio() {
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        analyserNode = audioCtx.createAnalyser();
-        analyserNode.fftSize = 256;
-        analyserNode.connect(audioCtx.destination);
-        drawLiveVisualizer();
-        drawFormulaGraph();
-    }
-}
-
-function playSoundFX(type) {
-    initAudio(); 
-    soundVolume = parseInt(document.getElementById('volumeSlider').value) / 100;
-    if (soundVolume === 0) return;
-    try {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        const cfg = soundSettings[type];
-        const oscillator = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
-        const biquadFilter = audioCtx.createBiquadFilter();
+        .main-layout { display: flex; gap: 15px; background: var(--bg-panel); padding: 15px; border-radius: 12px; width: 95vw; max-width: 1250px; justify-content: center; }
+        .canvas-container { position: relative; display: flex; overflow: hidden; background: #111; border-radius: 6px; border: 2px solid #444; flex-grow: 1; height: 650px; }
         
-        oscillator.type = cfg.wave;
-        oscillator.frequency.setValueAtTime(cfg.freq, audioCtx.currentTime);
-        biquadFilter.type = "lowpass";
-        biquadFilter.frequency.setValueAtTime(cfg.filter, audioCtx.currentTime);
+        #hud { position: absolute; top: 15px; left: 15px; background: rgba(0, 0, 0, 0.85); padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 11px; border: 1px solid #444; z-index: 10; color: #fff; }
+        .hud-row { display: flex; gap: 12px; align-items: center; }
 
-        oscillator.connect(gainNode); gainNode.connect(biquadFilter); biquadFilter.connect(analyserNode);
+        canvas#mapCanvas { background: #fff; width: 100%; height: 100%; display: block; }
         
-        let duration = cfg.duration, sampleRate = 100;
-        gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-        for (let t = 0; t < sampleRate; t++) {
-            let timeOffset = (t / sampleRate) * duration;
-            let volumeMod = eval(cfg.formula);
-            if(isNaN(volumeMod) || volumeMod < 0) volumeMod = 0;
-            gainNode.gain.linearRampToValueAtTime(volumeMod * soundVolume * 0.2, audioCtx.currentTime + timeOffset);
-        }
-        oscillator.start(); oscillator.stop(audioCtx.currentTime + duration);
-    } catch(e) {}
-}
+        .sidebar { display: flex; flex-direction: column; gap: 12px; min-width: 310px; max-width: 310px; background: var(--bg-sidebar); padding: 12px; border-radius: 8px; border: 1px solid #444; overflow-y: auto; height: 650px; box-sizing: border-box; }
+        .section { display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        h3 { margin: 0 0 2px 0; font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
 
-function drawLiveVisualizer() {
-    requestAnimationFrame(drawLiveVisualizer);
-    if(!analyserNode) return;
-    const bufferLength = analyserNode.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-    analyserNode.getByteTimeDomainData(dataArray);
-    vCtx.fillStyle = '#111'; vCtx.fillRect(0, 0, vCanvas.width, vCanvas.height);
-    vCtx.lineWidth = 2; vCtx.strokeStyle = '#00ff00'; vCtx.beginPath();
-    const sliceWidth = vCanvas.width / bufferLength; let x = 0;
-    for (let i = 0; i < bufferLength; i++) {
-        const v = dataArray[i] / 128.0; const y = (v * vCanvas.height) / 2;
-        if (i === 0) vCtx.moveTo(x, y); else vCtx.lineTo(x, y);
-        x += sliceWidth;
-    }
-    vCtx.lineTo(vCanvas.width, vCanvas.height / 2); vCtx.stroke();
-}
-
-function drawFormulaGraph() {
-    fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height);
-    fCtx.strokeStyle = '#333'; fCtx.lineWidth = 1; fCtx.beginPath();
-    fCtx.moveTo(0, fCanvas.height / 2); fCtx.lineTo(fCanvas.width, fCanvas.height / 2); fCtx.stroke();
-    fCtx.strokeStyle = '#0088ff'; fCtx.lineWidth = 2; fCtx.beginPath();
-    let currentFormula = soundSettings.click.formula, sampleRate = 100;
-    for (let t = 0; t < sampleRate; t++) {
-        let volumeMod = 0; try { volumeMod = eval(currentFormula); if (isNaN(volumeMod)) volumeMod = 0; } catch (e) { volumeMod = 0; }
-        let x = (t / sampleRate) * fCanvas.width;
-        let y = fCanvas.height / 2 - (volumeMod * (fCanvas.height * 0.4));
-        if (t === 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y);
-    }
-    fCtx.stroke();
-}
-
-// Посекундне зменшення кулдауну
-setInterval(() => {
-    if (cooldownTime > 0) {
-        cooldownTime -= 1.0;
-        if (cooldownTime < 0) cooldownTime = 0;
-    }
-    if (isCooldownBlocked && cooldownTime === 0) {
-        isCooldownBlocked = false;
-        document.getElementById('cooldownTimer').classList.remove('cooldown-blocked');
-    }
-    updateCooldownUI();
-}, 1000);
-
-function updateCooldownUI() {
-    const timerText = document.getElementById('cooldownTimer');
-    const bar = document.getElementById('cooldownBar');
-    
-    timerText.innerText = cooldownTime.toFixed(1) + "с";
-    let percentage = (cooldownTime / MAX_COOLDOWN) * 100;
-    bar.style.width = Math.min(100, percentage) + "%";
-    
-    if (isCooldownBlocked) {
-        bar.style.backgroundColor = '#ff4444';
-    } else {
-        bar.style.backgroundColor = percentage > 75 ? '#ffaa00' : '#00ff00';
-    }
-}
-
-// Функція обробки розміру малювання (Пензлі 1х1, 3х3, 5х5)
-function executeBrushPainting(baseX, baseY) {
-    if (isCooldownBlocked || !window.currentUser) return;
-    
-    const size = parseInt(document.getElementById('brushSizeSelector').value);
-    let offset = Math.floor(size / 2);
-    let anyPixelPainted = false;
-
-    for (let dx = -offset; dx <= offset; dx++) {
-        for (let dy = -offset; dy <= offset; dy++) {
-            let tx = baseX + dx;
-            let ty = baseY + dy;
-            
-            if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
-                // Якщо функція відправки повернула true (колір реально новий)
-                let success = sendPixel(tx, ty, selectedCode);
-                if (success) {
-                    anyPixelPainted = true;
-                    cooldownTime += 0.5; // Додаємо 0.5 сек кулдауну за кожен новий перефарбований піксель
-                }
-            }
-        }
-    }
-
-    // Звуки та лічильник оновлюються ТІЛЬКИ якщо зафарбувався хоча б один новий піксель
-    if (anyPixelPainted) {
-        playSoundFX('click');
-        clickCount++;
-        document.getElementById('hudClicks').innerText = clickCount;
+        .color-picker-wrapper { display: flex; align-items: center; gap: 15px; justify-content: center; }
+        input[type="color"] { width: 45px; height: 45px; border: none; border-radius: 50%; cursor: pointer; background: none; }
+        .color-box { width: 35px; height: 35px; border: 2px solid #fff; border-radius: 6px; }
+        #info { font-family: monospace; background: #111; padding: 6px; border-radius: 6px; text-align: center; font-size: 12px; }
         
-        if (cooldownTime >= MAX_COOLDOWN) {
-            cooldownTime = MAX_COOLDOWN;
-            isCooldownBlocked = true;
-            document.getElementById('cooldownTimer').classList.add('cooldown-blocked');
-            alert("ПЕРЕГРІВ! Ви заблоковані на 5 хвилин за інтенсивний спам пікселями.");
-        }
-        updateCooldownUI();
-    }
-}
+        .setting-item { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+        select, input[type="range"] { background: #333; color: #fff; border: 1px solid #555; padding: 2px; }
 
-// Палітра
-const alphabet = "abcdefghijklmnopqrstuvwxyz"; const palette = {}; 
-for (let r = 0; r < 26; r++) {
-    for (let g = 0; g < 26; g++) {
-        for (let b = 0; b < 26; b++) {
-            let rVal = Math.round(r * (255 / 25)), gVal = Math.round(g * (255 / 25)), bVal = Math.round(b * (255 / 25));
-            let code = alphabet[r] + alphabet[g] + alphabet[b];
-            palette[code] = { r: rVal, g: gVal, b: bVal, hex: `#${rVal.toString(16).padStart(2,'0')}${gVal.toString(16).padStart(2,'0')}${bVal.toString(16).padStart(2,'0')}` };
-        }
-    }
-}
-let selectedGameColor = "#ff0000", selectedCode = "aaa";
+        .cooldown-wrapper { background: #111; padding: 6px; border-radius: 6px; border: 1px solid #444; }
+        .cooldown-bar-container { background: #333; width: 100%; height: 12px; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+        #cooldownBar { background: #00ff00; width: 0%; height: 100%; transition: width 0.1s linear; }
 
-function findNearestColor(hexColor) {
-    let r = parseInt(hexColor.slice(1, 3), 16), g = parseInt(hexColor.slice(3, 5), 16), b = parseInt(hexColor.slice(5, 7), 16);
-    let minDistance = Infinity, nearestCode = "zzz", nearestHex = "#ffffff";
-    for (let code in palette) {
-        let p = palette[code]; let dist = Math.sqrt((r - p.r)**2 + (g - p.g)**2 + (b - p.b)**2);
-        if (dist < minDistance) { minDistance = dist; nearestCode = code; nearestHex = p.hex; }
-    }
-    return { code: nearestCode, hex: nearestHex };
-}
+        canvas.vis-canvas { background: #111; border: 1px solid #444; border-radius: 4px; display: block; }
+        .status-on { color: #00ff00; font-weight: bold; }
+        .status-off { color: #ff4444; font-weight: bold; }
+        .logout-btn { background: #aa2222; color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
 
-const picker = document.getElementById('colorPicker');
-picker.addEventListener('input', (e) => {
-    let nearest = findNearestColor(e.target.value);
-    selectedGameColor = nearest.hex; selectedCode = nearest.code;
-    document.getElementById('matchedColorBox').style.backgroundColor = nearest.hex;
-    document.getElementById('colorCode').innerText = nearest.code;
-});
+    <div id="authScreen">
+        <div class="auth-box">
+            <h2>Вхід у Pixel World</h2>
+            <input type="email" id="authEmail" placeholder="Ваш Email" required>
+            <input type="password" id="authPassword" placeholder="Пароль" required>
+            <input type="text" id="authNickname" placeholder="Нікнейм (Для реєстрації)">
+            <button type="button" onclick="handleLogin()">Увійти</button>
+            <button type="button" style="background:#111; border:1px solid #00ff00; color:#00ff00;" onclick="handleRegister()">Реєстрація</button>
+        </div>
+    </div>
 
-function redrawCanvas() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.save();
-    ctx.translate(camera.x, camera.y); ctx.scale(zoom, zoom);
-    
-    ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 4 / zoom;
-    ctx.strokeRect(0, 0, MAP_WIDTH * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE);
+    <h1>Пікс Мапа v6.0 (Мультиплеєр)</h1>
+    <div class="hint">Світ: <span class="hotkey">Спільний онлайн</span> | <span class="hotkey">Shift</span> — режим пензля | <span class="hotkey">Ctrl + Клік</span> — піпетка</div>
 
-    if (showGrid && zoom > 0.08) { 
-        ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 0.5 / zoom; ctx.beginPath();
-        for (let x = 0; x <= MAP_WIDTH; x += 4) { ctx.moveTo(x * PIXEL_SIZE, 0); ctx.lineTo(x * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE); }
-        for (let y = 0; y <= MAP_HEIGHT; y += 4) { ctx.moveTo(0, y * PIXEL_SIZE); ctx.lineTo(MAP_WIDTH * PIXEL_SIZE, y * PIXEL_SIZE); }
-        ctx.stroke();
-    }
+    <div class="main-layout">
+        <div class="canvas-container" id="canvasContainer">
+            <div id="hud">
+                <div class="hud-row">
+                    <div>Гравець: <strong id="hudUser" style="color:#ffcc00;">—</strong> <button class="logout-btn" onclick="handleLogout()">Вийти</button></div>
+                    <div>Ранг: <span style="color:#00ffff;">Мультиплеєр</span></div>
+                </div>
+                <div class="hud-row" style="margin-top: 4px; border-top: 1px solid #444; padding-top: 4px;">
+                    <div>X: <span id="hudX">0</span> | Y: <span id="hudY">0</span></div>
+                    <div>Zoom: <span id="hudZoom">100%</span></div>
+                    <div>Кліки: <span id="hudClicks" style="color:#00ff00;">0</span></div>
+                </div>
+            </div>
+            <canvas id="mapCanvas"></canvas>
+        </div>
 
-    if (window.mapData) {
-        for (let key in window.mapData) {
-            let coords = key.split('_');
-            let x = parseInt(coords[0]), y = parseInt(coords[1]);
-            let code = window.mapData[key];
-            ctx.fillStyle = palette[code] ? palette[code].hex : "#ffffff";
-            ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
-        }
-    }
-    ctx.restore();
-}
+        <div class="sidebar">
+            <div class="section">
+                <h3>Палітра</h3>
+                <div class="color-picker-wrapper">
+                    <input type="color" id="colorPicker" value="#ff0000">
+                    <div id="matchedColorBox" class="color-box" style="background: #ff0000;"></div>
+                </div>
+                <div id="info">Код кольору: <strong id="colorCode" style="color: #00ff00;">aaa</strong></div>
+            </div>
 
-window.redrawCanvas = redrawCanvas;
+            <div class="section">
+                <h3>Перегрів (Кулдаун)</h3>
+                <div class="cooldown-wrapper">
+                    <div style="font-size: 11px;">
+                        Таймер: <strong id="cooldownTimer">0.0с</strong> / 300с
+                    </div>
+                    <div class="cooldown-bar-container">
+                        <div id="cooldownBar"></div>
+                    </div>
+                </div>
+            </div>
 
-function screenToGrid(clientX, clientY) {
-    const rect = canvas.getBoundingClientRect();
-    return { 
-        x: Math.floor((clientX - rect.left - camera.x) / (PIXEL_SIZE * zoom)), 
-        y: Math.floor((clientY - rect.top - camera.y) / (PIXEL_SIZE * zoom)) 
-    };
-}
+            <div class="section">
+                <h3>Кастомізація</h3>
+                <div class="setting-item">
+                    <label>Розмір пензля</label>
+                    <select id="brushSizeSelector">
+                        <option value="1">1 × 1 піксель</option>
+                        <option value="3">3 × 3 пікселі</option>
+                        <option value="5">5 × 5 пікселів</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label>Тема інтерфейсу</label>
+                    <select id="themeSelector">
+                        <option value="dark">Темна (Стандарт)</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label>Відображати сітку</label>
+                    <input type="checkbox" id="gridCheckbox" checked>
+                </div>
+                <div class="setting-item">
+                    <label>Загальна гучність</label>
+                    <input type="range" id="volumeSlider" min="0" max="100" value="50">
+                </div>
+            </div>
 
-canvas.addEventListener('mousemove', (e) => {
-    if (isDragging) { camera.x = e.clientX - startPan.x; camera.y = e.clientY - startPan.y; redrawCanvas(); return; }
-    const coords = screenToGrid(e.clientX, e.clientY);
-    if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
-        document.getElementById('hudX').innerText = coords.x; document.getElementById('hudY').innerText = coords.y;
-        if (isMouseDown && continuousDrawMode) {
-            executeBrushPainting(coords.x, coords.y);
-        }
-    }
-});
+            <div class="section">
+                <h3>Візуалізація звуку</h3>
+                <div style="font-size: 10px; color:#aaa;">ДИНАМІЧНА ХВИЛЯ:</div>
+                <canvas id="visualizerCanvas" class="vis-canvas" width="285" height="40"></canvas>
+                <div style="font-size: 10px; color:#aaa; margin-top:4px;">ГРАФІК КОДУ F(T):</div>
+                <canvas id="formulaCanvas" class="vis-canvas" width="285" height="40"></canvas>
+            </div>
 
-canvas.addEventListener('mousedown', (e) => {
-    if (!window.currentUser) return; 
-    if (e.button === 1 || e.button === 2) { isDragging = true; startPan.x = e.clientX - camera.x; startPan.y = e.clientY - camera.y; e.preventDefault(); return; }
-    if (e.button === 0) {
-        isMouseDown = true; const coords = screenToGrid(e.clientX, e.clientY);
-        if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
-            let key = coords.x + '_' + coords.y;
-            if (e.ctrlKey) { 
-                e.preventDefault(); 
-                let clickedCode = (window.mapData && window.mapData[key]) ? window.mapData[key] : "zzz"; 
-                picker.value = palette[clickedCode].hex; picker.dispatchEvent(new Event('input')); 
-                playSoundFX('pipette'); return; 
-            }
-            executeBrushPainting(coords.x, coords.y);
-        }
-    }
-});
+            <div class="section">
+                <h3>Стан профілю</h3>
+                <div style="font-size: 12px;">Режим: <span id="brushStatus" class="status-off">Крапка (Кліки)</span></div>
+                <button id="resetMapBtn" style="margin-top:5px; background:#444; color:#fff; border:1px solid #666; padding:6px; cursor:pointer; font-weight:bold; border-radius:4px;">Очистити всю карту онлайн</button>
+            </div>
+        </div>
+    </div>
 
-window.addEventListener('mouseup', () => { isDragging = false; isMouseDown = false; });
-
-canvas.addEventListener('wheel', (e) => {
-    e.preventDefault(); const rect = canvas.getBoundingClientRect();
-    let mX = e.clientX - rect.left, mY = e.clientY - rect.top;
-    let gridX = (mX - camera.x) / zoom, gridY = (mY - camera.y) / zoom;
-    zoom = (e.deltaY < 0) ? Math.min(maxZoom, zoom * 1.2) : Math.max(minZoom, zoom / 1.2);
-    camera.x = mX - gridX * zoom; camera.y = mY - gridY * zoom;
-    document.getElementById('hudZoom').innerText = Math.round(zoom * 100) + "%"; redrawCanvas();
-});
-
-document.getElementById('gridCheckbox').addEventListener('change', (e) => { showGrid = e.target.checked; redrawCanvas(); });
-document.getElementById('volumeSlider').addEventListener('input', (e) => { soundVolume = e.target.value / 100; });
-
-window.addEventListener('keydown', (e) => {
-    if (e.key === 'Shift') {
-        e.preventDefault(); continuousDrawMode = !continuousDrawMode; playSoundFX('switch');
-        const statusEl = document.getElementById('brushStatus');
-        if (continuousDrawMode) { statusEl.innerText = "Пензель (Затискання)"; statusEl.className = "status-on"; }
-        else { statusEl.innerText = "Крапка (Кліки)"; statusEl.className = "status-off"; }
-    }
-});
-
-document.getElementById('resetMapBtn').addEventListener('click', () => {
-    if(confirm("Очистити абсолютно всю онлайн карту?")) { firebase.database().ref('multiplayer_map').remove(); }
-});
-
-window.addEventListener('resize', () => { canvas.width = container.clientWidth; canvas.height = container.clientHeight; redrawCanvas(); });
-canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-
-picker.value = "#ff0000"; picker.dispatchEvent(new Event('input'));
-setTimeout(redrawCanvas, 600);
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="database.js"></script>
+    <script src="player.js"></script>
+</body>
+</html>
