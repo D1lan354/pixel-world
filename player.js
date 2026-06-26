@@ -247,24 +247,28 @@ function updateMouseCoordinates(event) {
 
 // === КЕРУВАННЯ МАСШТАБОМ (ЗУМ КОЛІЩАТКОМ) ===
 function setupZoomAndPan() {
-    viewport.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        
-        const zoomSpeed = 0.15;
-        if (e.deltaY < 0) {
-            zoomLevel += zoomSpeed;
-        } else {
-            zoomLevel -= zoomSpeed;
-        }
-        
-        // Ліміти масштабу: від 20% до 1200%
-        if (zoomLevel < 0.2) zoomLevel = 0.2;
-        if (zoomLevel > 12) zoomLevel = 12;
+window.addEventListener('wheel', (event) => {
+    event.preventDefault(); // Щоб сторінка не рухалася вгору-вниз
 
-        canvas.style.transform = `scale(${zoomLevel})`;
-        canvas.style.transformOrigin = "top left";
-        document.getElementById('zoomVal').innerText = Math.round(zoomLevel * 100) + "%";
-    }, { passive: false });
+    // Зміна кроку зуму
+    if (event.deltaY < 0) {
+        zoomLevel += 0.2; // Наближення
+    } else {
+        zoomLevel -= 0.2; // Віддалення
+    }
+
+    // ФІКС ЗУМУ: Обмежуємо мінімальний і максимальний масштаб
+    // 0.5 (50% від реального розміру) — карта не стане меншою за екран
+    // 8.0 (800%) — максимальне наближення, щоб бачити пікселі
+    if (zoomLevel < 0.5) zoomLevel = 0.5;
+    if (zoomLevel > 8.0) zoomLevel = 8.0;
+
+    // Оновлюємо інтерфейс для гравця
+    document.getElementById('zoom-scale').innerText = `${Math.round(zoomLevel * 100)}%`;
+
+    // Застосовуємо стилі до канвасу
+    canvas.style.transform = `scale(${zoomLevel})`;
+}, { passive: false });
 }
 
 // Повне адмін-очищення онлайн-карти (скидання у воду)
