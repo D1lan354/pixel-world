@@ -1,158 +1,30 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-    <meta charset="UTF-8">
-    <title>Pixel Map Engine v6.0 — Фікс інтерфейсу</title>
-    <style>
-        :root { --bg-main: #1a1a1a; --bg-panel: #2a2a2a; --bg-sidebar: #222; --text-color: #fff; --accent: #00ff00; }
-        body { background: var(--bg-main); color: var(--text-color); font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 10px; margin: 0; user-select: none; }
-        h1 { margin-top: 5px; margin-bottom: 2px; font-size: 22px; text-shadow: 0 0 5px var(--accent); }
-        .hint { color: #888; font-size: 12px; margin-bottom: 10px; }
-        .hotkey { color: #ffcc00; font-weight: bold; }
-
-        #authScreen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 100; }
-        .auth-box { background: #222; padding: 25px; border-radius: 12px; border: 2px solid #444; width: 320px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 0 20px rgba(0,255,0,0.2); color: #fff; }
-        .auth-box h2 { margin: 0; font-size: 18px; text-align: center; color: var(--accent); }
-        .auth-box input { background: #111; border: 1px solid #555; padding: 8px; color: #fff; border-radius: 4px; }
-        .auth-box button { background: #333; border: 1px solid #666; color: #fff; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .auth-box button:hover { background: var(--accent); color: #000; }
-
-        .main-layout { display: flex; gap: 15px; background: var(--bg-panel); padding: 15px; border-radius: 12px; width: 95vw; max-width: 1250px; justify-content: center; }
-        .canvas-container { position: relative; display: flex; overflow: hidden; background: #111; border-radius: 6px; border: 2px solid #444; flex-grow: 1; height: 650px; }
-        
-        #hud { position: absolute; top: 15px; left: 15px; background: rgba(0, 0, 0, 0.85); padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 11px; border: 1px solid #444; z-index: 10; color: #fff; }
-        .hud-row { display: flex; gap: 12px; align-items: center; }
-
-        canvas#mapCanvas { background: #fff; width: 100%; height: 100%; display: block; }
-        
-        .sidebar { display: flex; flex-direction: column; gap: 12px; min-width: 310px; max-width: 310px; background: var(--bg-sidebar); padding: 12px; border-radius: 8px; border: 1px solid #444; overflow-y: auto; height: 650px; box-sizing: border-box; }
-        .section { display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid #444; padding-bottom: 10px; }
-        h3 { margin: 0 0 2px 0; font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
-
-        .color-picker-wrapper { display: flex; align-items: center; gap: 15px; justify-content: center; }
-        input[type="color"] { width: 45px; height: 45px; border: none; border-radius: 50%; cursor: pointer; background: none; }
-        .color-box { width: 35px; height: 35px; border: 2px solid #fff; border-radius: 6px; }
-        #info { font-family: monospace; background: #111; padding: 6px; border-radius: 6px; text-align: center; font-size: 12px; }
-        
-        .setting-item { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
-        select, input[type="range"] { background: #333; color: #fff; border: 1px solid #555; padding: 2px; }
-
-        .cooldown-wrapper { background: #111; padding: 6px; border-radius: 6px; border: 1px solid #444; }
-        .cooldown-bar-container { background: #333; width: 100%; height: 12px; border-radius: 3px; overflow: hidden; margin-top: 4px; }
-        #cooldownBar { background: #00ff00; width: 0%; height: 100%; transition: width 0.1s linear; }
-
-        canvas.vis-canvas { background: #111; border: 1px solid #444; border-radius: 4px; display: block; }
-        .status-on { color: #00ff00; font-weight: bold; }
-        .status-off { color: #ff4444; font-weight: bold; }
-        .logout-btn { background: #aa2222; color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: bold; }
-    </style>
-</head>
-<body>
-
-    <div id="authScreen">
-        <div class="auth-box">
-            <h2>Вхід у Pixel World</h2>
-            <input type="email" id="authEmail" placeholder="Ваш Email" required>
-            <input type="password" id="authPassword" placeholder="Пароль" required>
-            <input type="text" id="authNickname" placeholder="Нікнейм (Для реєстрації)">
-            <button type="button" onclick="handleLogin()">Увійти</button>
-            <button type="button" style="background:#111; border:1px solid #00ff00; color:#00ff00;" onclick="handleRegister()">Реєстрація</button>
-        </div>
-    </div>
-
-    <h1>Пікс Мапа v6.0 (Мультиплеєр)</h1>
-    <div class="hint">Світ: <span class="hotkey">Спільний онлайн</span> | <span class="hotkey">Shift</span> — режим пензля | <span class="hotkey">Ctrl + Клік</span> — піпетка</div>
-
-    <div class="main-layout">
-        <div class="canvas-container" id="canvasContainer">
-            <div id="hud">
-                <div class="hud-row">
-                    <div>Гравець: <strong id="hudUser" style="color:#ffcc00;">—</strong> <button class="logout-btn" onclick="handleLogout()">Вийти</button></div>
-                    <div>Ранг: <span style="color:#00ffff;">Мультиплеєр</span></div>
-                </div>
-                <div class="hud-row" style="margin-top: 4px; border-top: 1px solid #444; padding-top: 4px;">
-                    <div>X: <span id="hudX">0</span> | Y: <span id="hudY">0</span></div>
-                    <div>Zoom: <span id="hudZoom">100%</span></div>
-                    <div>Кліки: <span id="hudClicks" style="color:#00ff00;">0</span></div>
-                </div>
-            </div>
-            <canvas id="mapCanvas"></canvas>
-        </div>
-
-        <div class="sidebar">
-            <div class="section">
-                <h3>Палітра</h3>
-                <div class="color-picker-wrapper">
-                    <input type="color" id="colorPicker" value="#ff0000">
-                    <div id="matchedColorBox" class="color-box" style="background: #ff0000;"></div>
-                </div>
-                <div id="info">Код кольору: <strong id="colorCode" style="color: #00ff00;">aaa</strong></div>
-            </div>
-
-            <div class="section">
-                <h3>Перегрів (Кулдаун)</h3>
-                <div class="cooldown-wrapper">
-                    <div style="font-size: 11px;">
-                        Таймер: <strong id="cooldownTimer">0.0с</strong> / 300с
-                    </div>
-                    <div class="cooldown-bar-container">
-                        <div id="cooldownBar"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="section">
-                <h3>Кастомізація</h3>
-                <div class="setting-item">
-                    <label>Розмір пензля</label>
-                    <select id="brushSizeSelector">
-                        <option value="1">1 × 1 піксель</option>
-                        <option value="3">3 × 3 пікселі</option>
-                        <option value="5">5 × 5 пікселів</option>
-                    </select>
-                </div>
-                <div class="setting-item">
-                    <label>Тема інтерфейсу</label>
-                    <select id="themeSelector">
-                        <option value="dark">Темна (Стандарт)</option>
-                    </select>
-                </div>
-                <div class="setting-item">
-                    <label>Відображати сітку</label>
-                    <input type="checkbox" id="gridCheckbox" checked>
-                </div>
-                <div class="setting-item">
-                    <label>Загальна гучність</label>
-                    <input type="range" id="volumeSlider" min="0" max="100" value="50">
-                </div>
-            </div>
-
-            <div class="section">
-                <h3>Візуалізація звуку</h3>
-                <div style="font-size: 10px; color:#aaa;">ДИНАМІЧНА ХВИЛЯ:</div>
-                <canvas id="visualizerCanvas" class="vis-canvas" width="285" height="40"></canvas>
-                <div style="font-size: 10px; color:#aaa; margin-top:4px;">ГРАФІК КОДУ F(T):</div>
-<div style="margin-top: 10px;">
-    <label style="display: block; color: #aaa; font-size: 11px; margin-bottom: 4px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Код звуку f(t):</label>
-    <input type="text" id="audioFormulaInput" value="Math.sin(t * 0.2) * Math.exp(-t * 0.04)" 
-           style="width: 100%; background: #181818; color: #00ff00; border: 1px solid #333; padding: 6px 8px; font-family: 'Courier New', monospace; font-size: 12px; border-radius: 4px; box-sizing: border-box; outline: none; transition: border-color 0.2s;"
-           onfocus="this.style.borderColor='#00ff00'" onblur="this.style.borderColor='#333'"
-           oninput="if(window.updateAudioFormula) window.updateAudioFormula(this.value)">
+<div class="section-title">КАСТОМІЗАЦІЯ</div>
+<div class="control-group" style="margin-bottom: 10px;">
+    <label style="color: #aaa; font-size: 12px;">Розмір пензля:</label>
+    <select id="brushSizeSelector" style="background: #222; color: #fff; border: 1px solid #444; padding: 4px; border-radius: 4px; float: right; width: 120px;">
+        <option value="1">1 × 1 піксель</option>
+        <option value="3">3 × 3 пікселі</option>
+        <option value="5">5 × 5 пікселів</option>
+    </select>
+    <div style="clear: both;"></div>
 </div>
-            </div>
 
-            <div class="section">
-                <h3>Стан профілю</h3>
-                <div style="font-size: 12px;">Режим: <span id="brushStatus" class="status-off">Крапка (Кліки)</span></div>
-                <button id="resetMapBtn" style="margin-top:5px; background:#444; color:#fff; border:1px solid #666; padding:6px; cursor:pointer; font-weight:bold; border-radius:4px;">Очистити всю карту онлайн</button>
-            </div>
-        </div>
-    </div>
+<div class="control-group" style="margin-bottom: 10px;">
+    <label style="color: #aaa; font-size: 12px;">Тема інтерфейсу:</label>
+    <select id="themeSelector" style="background: #222; color: #fff; border: 1px solid #444; padding: 4px; border-radius: 4px; float: right; width: 120px;">
+        <option value="dark">Темна (Стандарт)</option>
+    </select>
+    <div style="clear: both;"></div>
+</div>
 
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="database.js"></script>
-    <script src="player.js"></script>
-</body>
-</html>
+<div class="control-group" style="margin-bottom: 10px;">
+    <label style="color: #aaa; font-size: 12px; display: inline-block;">Відображати сітку:</label>
+    <input type="checkbox" id="gridCheckbox" checked style="float: right; margin-top: 4px;">
+    <div style="clear: both;"></div>
+</div>
+
+<div class="control-group" style="margin-bottom: 15px;">
+    <label style="color: #aaa; font-size: 12px;">Загальна гучність:</label>
+    <input type="range" id="volumeSlider" min="0" max="100" value="50" style="float: right; width: 120px; margin-top: 4px;">
+    <div style="clear: both;"></div>
+</div>
