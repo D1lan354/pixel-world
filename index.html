@@ -2,427 +2,73 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Нікс Мапа v6.0 — Світ</title>
-    
+    <title>Pix Universe - Core</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body, html {
-            width: 100%;
-            height: 100%;
-            background-color: #0b0e14;
-            color: #e0e0e0;
-            font-family: 'Segoe UI', Roboto, sans-serif;
-            overflow: hidden;
-            user-select: none;
-        }
-        
-        #viewport {
-            width: 100vw;
-            height: 100vh;
-            position: absolute;
-            top: 0;
-            left: 0;
-            overflow: hidden;
-            background: #afe7f3;
-        }
-        
-        canvas {
-            position: absolute;
-            image-rendering: pixelated;
-            transform-origin: 0 0;
-            will-change: transform;
-        }
-
-        .sidebar {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 320px;
-            background: rgba(20, 24, 33, 0.92);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            z-index: 100;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        }
-
-        h2 { font-size: 18px; color: #00ff88; text-transform: uppercase; letter-spacing: 1px; }
-        .player-tag { color: #ffcc00; font-weight: bold; }
-        .section { background: rgba(255,255,255,0.04); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); }
-        .label-text { font-size: 11px; color: #8a99ad; text-transform: uppercase; display: block; margin-bottom: 5px; }
-
-        .cooldown-container {
-            width: 100%;
-            background: #222733;
-            height: 8px;
-            border-radius: 4px;
-            overflow: hidden;
-            margin-top: 6px;
-        }
-        .cooldown-bar {
-            width: 0%;
-            height: 100%;
-            background: linear-gradient(90deg, #00ff88, #00ffcc);
-            transition: width 0.1s linear;
-        }
-
-        select, input[type="color"] {
-            width: 100%;
-            padding: 10px;
-            background: #1b202e;
-            border: 1px solid #2e384d;
-            color: #fff;
-            border-radius: 6px;
-            font-weight: bold;
-            outline: none;
-        }
-        input[type="color"] { height: 45px; cursor: pointer; padding: 5px; }
-        
-        .mode-indicator {
-            font-size: 12px;
-            margin-top: 3px;
-            font-weight: bold;
+        body { margin: 0; overflow: hidden; background: #121212; }
+        #viewport { width: 100vw; height: 100vh; position: relative; cursor: crosshair; }
+        #canvasWrapper { position: absolute; transform-origin: 0 0; }
+        /* Границі пікселів (сітка) */
+        .pixel-grid { 
+            position: absolute; pointer-events: none; 
+            border: 0.5px solid rgba(255,255,255,0.1); 
+            display: none; 
         }
     </style>
 </head>
 <body>
 
-    <div id="viewport">
-        <canvas id="pixelCanvas"></canvas>
+<div id="viewport">
+    <div id="canvasWrapper">
+        <canvas id="pixelCanvas" width="2048" height="2048"></canvas>
     </div>
+</div>
 
-    <div class="sidebar">
-        <h2>Нікс Мапа v6.0</h2>
-        <div style="font-size: 13px;">Гравець: <span class="player-tag">Dylan</span></div>
-        
-        <div class="section">
-            <span class="label-text">Навігація</span>
-            <div>Координати: X: <span id="coordX" style="color:#00ff88;">0</span> | Y: <span id="coordY" style="color:#00ff88;">0</span></div>
-            <div>Масштаб: <span id="zoomVal" style="color:#00ffcc;">100%</span></div>
-        </div>
+<script>
+    // 1. Конфіг Firebase
+    const firebaseConfig = { 
+        databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com" 
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const mapRef = db.ref('multiplayer_map');
 
-        <div class="section">
-            <span class="label-text">Перегрів (Кулдаун)</span>
-            <div id="cooldownTimerText" style="font-weight: bold;">0.0с / 300с</div>
-            <div class="cooldown-container">
-                <div class="cooldown-bar" id="cooldownProgressBar"></div>
-            </div>
-        </div>
+    const canvas = document.getElementById("pixelCanvas");
+    const ctx = canvas.getContext("2d");
+    let mapData = {};
 
-        <div class="section">
-            <span class="label-text">Режим миші / Інструмент</span>
-            <select id="brushSizeSelect">
-                <option value="0">Режим перегляду (Рука — Тягнути карту)</option>
-                <option value="1">Пензель: 1 × 1 піксель</option>
-                <option value="5">Пензель: 5 × 5 пікселів</option>
-            </select>
-            <div id="currentModeLabel" class="mode-indicator" style="color: #ff9f43;">Режим: Перетягування карти</div>
-        </div>
-        
-        <div class="section">
-            <span class="label-text">Кастомізація кольору</span>
-            <input type="color" id="nativeColorPicker" value="#a65d5d">
-            <p style="margin-top:6px; font-size:12px;">Код у базі: <span id="colorCodeText" style="color:#00ffcc; font-weight:bold;">rhh</span></p>
-        </div>
-    </div>
+    // 2. Логіка малювання та збереження
+    function draw(x, y, colorCode) {
+        ctx.fillStyle = colorCode; // Тут додаси маппінг своїх кодів
+        ctx.fillRect(x, y, 1, 1);
+    }
 
-    <script>
-        // ===================================================
-        // 1. СИНТЕТИЗАТОР ЗВУКІВ
-        // ===================================================
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-        function playSound(type) {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-
-            const osc = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            osc.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-
-            if (type === 'click') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); 
-                osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.08); 
-                gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.1);
-            } 
-            else if (type === 'blocked') {
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(150, audioCtx.currentTime); 
-                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
-                gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.08);
-            } 
-            else if (type === 'cooldown') {
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(90, audioCtx.currentTime);
-                osc.frequency.linearRampToValueAtTime(70, audioCtx.currentTime + 0.2);
-                gainNode.gain.setValueAtTime(0.25, audioCtx.currentTime);
-                gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.2);
+    // Завантаження з бази
+    mapRef.on('value', (snapshot) => {
+        mapData = snapshot.val() || {};
+        for (let y in mapData) {
+            for (let x in mapData[y]) {
+                draw(parseInt(x), parseInt(y), mapData[y][x]);
             }
         }
+    });
 
-        // ===================================================
-        // 2. ІНІЦІАЛІЗАЦІЯ FIREBASE
-        // ===================================================
-        const firebaseConfig = {
-            apiKey: "AIzaSyArIgEB93kQ_2xfJAjkvGuKVhYqwoKpB54",
-            authDomain: "pixel-world-db.firebaseapp.com",
-            databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com",
-            projectId: "pixel-world-db",
-            storageBucket: "pixel-world-db.firebasestorage.app",
-            messagingSenderId: "987006631539",
-            appId: "1:987006631539:web:8f8b732de1d26fa2ce3406"
-        };
-        
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-        const mapRef = database.ref('multiplayer_map');
+    // Збереження в базу (короткий код)
+    function savePixel(x, y, code) {
+        db.ref(`multiplayer_map/${y}/${x}`).set(code);
+    }
 
-        // ===================================================
-        // 3. ЗМІННІ СЕРЕДОВИЩА
-        // ===================================================
-        const canvas = document.getElementById("pixelCanvas");
-        const ctx = canvas.getContext("2d");
-        const viewport = document.getElementById("viewport");
-        const brushSelect = document.getElementById("brushSizeSelect");
-        const modeLabel = document.getElementById("currentModeLabel");
-
-        const MAP_SIZE = 2048;
-        canvas.width = MAP_SIZE;
-        canvas.height = MAP_SIZE;
-
-        let zoomLevel = 0.5; 
-        let posX = (window.innerWidth - MAP_SIZE * zoomLevel) / 2;
-        let posY = (window.innerHeight - MAP_SIZE * zoomLevel) / 2;
-
-        let mapData = {}; 
-        let currentColorCode = "rhh"; 
-        let currentCooldown = 0;
-
-        // Словник кольорів
-        const colorPaletteMap = {
-            "aaa": "#ffffff", 
-            "zaa": "#afe7f3", 
-            "rhh": "#a65d5d"  
-        };
-
-        // Заливка фону (океан)
-        ctx.fillStyle = colorPaletteMap["zaa"];
-        ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
-
-        function updateTransform() {
-            canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${zoomLevel})`;
-            document.getElementById("zoomVal").innerText = `${Math.round(zoomLevel * 100)}%`;
+    // 3. Сітка (границі)
+    // При зумі > 10, показуємо границі пікселів
+    function updateGridVisibility(zoom) {
+        const grid = document.getElementById('canvasWrapper');
+        if (zoom > 10) {
+            grid.style.outline = "1px solid rgba(255,255,255,0.05)";
+        } else {
+            grid.style.outline = "none";
         }
-        updateTransform();
-
-        // ===================================================
-        // 4. СИНХРОНІЗАЦІЯ З БАЗОЮ (LIVE)
-        // ===================================================
-        function drawPixel(x, y, colorCode) {
-            ctx.fillStyle = colorPaletteMap[colorCode] || "#000000"; // Якщо коду немає, малюємо чорним для перевірки
-            ctx.fillRect(x, y, 1, 1);
-        }
-
-        // Завантаження всієї карти при старті
-        mapRef.once('value').then((snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                mapData = data;
-                for (let y in mapData) {
-                    for (let x in mapData[y]) {
-                        drawPixel(parseInt(x), parseInt(y), mapData[y][x]);
-                    }
-                }
-            }
-            listenForLiveUpdates();
-        });
-
-        // Слухаємо оновлення рядків (Y)
-        function listenForLiveUpdates() {
-            const handleUpdate = (snapshot) => {
-                const y = snapshot.key;
-                const rowData = snapshot.val();
-                if (!mapData[y]) mapData[y] = {};
-                for (let x in rowData) {
-                    mapData[y][x] = rowData[x];
-                    drawPixel(parseInt(x), parseInt(y), rowData[x]);
-                }
-            };
-            mapRef.on('child_changed', handleUpdate);
-            mapRef.on('child_added', handleUpdate);
-        }
-
-        // ===================================================
-        // 5. КЕРУВАННЯ ІНТЕРФЕЙСОМ ТА ПЕНЗЛЕМ
-        // ===================================================
-        brushSelect.addEventListener('change', () => {
-            if (parseInt(brushSelect.value) === 0) {
-                modeLabel.innerText = "Режим: Перетягування карти";
-                modeLabel.style.color = "#ff9f43";
-                viewport.style.cursor = "grab";
-            } else {
-                modeLabel.innerText = `Режим: Малювання (Пензель ${brushSelect.value}x${brushSelect.value})`;
-                modeLabel.style.color = "#00ff88";
-                viewport.style.cursor = "crosshair";
-            }
-        });
-
-        document.getElementById('nativeColorPicker').addEventListener('input', (e) => {
-            let hex = e.target.value.toLowerCase();
-            if (hex === "#ffffff") currentColorCode = "aaa";
-            else if (hex === "#afe7f3") currentColorCode = "zaa";
-            else {
-                currentColorCode = "rhh";
-                colorPaletteMap["rhh"] = hex; // Оновлюємо візуальний колір локально
-            }
-            document.getElementById('colorCodeText').innerText = currentColorCode;
-        });
-
-        // ===================================================
-        // 6. НАВІГАЦІЯ: ЗУМ ТА ТЯГАННЯ КАМЕРИ
-        // ===================================================
-        viewport.addEventListener("wheel", (event) => {
-            event.preventDefault();
-            const zoomSpeed = 0.12;
-            const mouseX = event.clientX;
-            const mouseY = event.clientY;
-
-            const canvasX = (mouseX - posX) / zoomLevel;
-            const canvasY = (mouseY - posY) / zoomLevel;
-
-            if (event.deltaY < 0) {
-                zoomLevel += zoomLevel * zoomSpeed;
-            } else {
-                zoomLevel -= zoomLevel * zoomSpeed;
-            }
-
-            if (zoomLevel < 0.15) zoomLevel = 0.15;
-            if (zoomLevel > 20.0) zoomLevel = 20.0;
-
-            posX = mouseX - canvasX * zoomLevel;
-            posY = mouseY - canvasY * zoomLevel;
-
-            updateTransform();
-        }, { passive: false });
-
-        let isDragging = false;
-        let startX, startY;
-
-        viewport.addEventListener("mousedown", (e) => {
-            const currentBrush = parseInt(brushSelect.value);
-
-            // Режим перетягування
-            if (currentBrush === 0 || e.button === 1 || e.button === 2) {
-                isDragging = true;
-                if(currentBrush === 0) viewport.style.cursor = "grabbing";
-                startX = e.clientX - posX;
-                startY = e.clientY - posY;
-                e.preventDefault();
-                return;
-            }
-
-            // Режим малювання
-            if (e.button === 0 && currentBrush > 0) {
-                if (currentCooldown >= 300) {
-                    playSound('cooldown');
-                    return;
-                }
-
-                const clickX = Math.floor((e.clientX - posX) / zoomLevel);
-                const clickY = Math.floor((e.clientY - posY) / zoomLevel);
-
-                const halfBrush = Math.floor(currentBrush / 2);
-                let pixelsChanged = 0;
-
-                for (let dy = -halfBrush; dy <= halfBrush; dy++) {
-                    for (let dx = -halfBrush; dx <= halfBrush; dx++) {
-                        const tx = clickX + dx;
-                        const ty = clickY + dy;
-
-                        if (tx >= 0 && tx < MAP_SIZE && ty >= 0 && ty < MAP_SIZE) {
-                            // Отримуємо поточний КОД пікселя
-                            const existingCode = (mapData[ty] && mapData[ty][tx]) ? mapData[ty][tx] : "zaa";
-
-                            if (existingCode !== currentColorCode) {
-                                // Записуємо локально
-                                if (!mapData[ty]) mapData[ty] = {};
-                                mapData[ty][tx] = currentColorCode;
-                                drawPixel(tx, ty, currentColorCode);
-
-                                // Відправляємо КОД у базу даних
-                                mapRef.child(`${ty}/${tx}`).set(currentColorCode);
-                                pixelsChanged++;
-                            }
-                        }
-                    }
-                }
-
-                if (pixelsChanged > 0) {
-                    currentCooldown += pixelsChanged * 1.5;
-                    if (currentCooldown > 300) currentCooldown = 300;
-                    updateCooldownUI();
-                    playSound('click');
-                } else {
-                    playSound('blocked');
-                }
-            }
-        });
-
-        window.addEventListener("mousemove", (e) => {
-            if (isDragging) {
-                posX = e.clientX - startX;
-                posY = e.clientY - startY;
-                updateTransform();
-            }
-        });
-
-        window.addEventListener("mouseup", () => {
-            isDragging = false;
-            if (parseInt(brushSelect.value) === 0) viewport.style.cursor = "grab";
-        });
-        
-        viewport.addEventListener("contextmenu", e => e.preventDefault());
-
-        viewport.addEventListener('mousemove', (e) => {
-            const x = Math.floor((e.clientX - posX) / zoomLevel);
-            const y = Math.floor((e.clientY - posY) / zoomLevel);
-            if(x >= 0 && x < MAP_SIZE && y >= 0 && y < MAP_SIZE) {
-                document.getElementById('coordX').innerText = x;
-                document.getElementById('coordY').innerText = y;
-            }
-        });
-
-        // ===================================================
-        // 7. СИСТЕМА ОХОЛОДЖЕННЯ
-        // ===================================================
-        setInterval(() => {
-            if (currentCooldown > 0) {
-                currentCooldown -= 0.2;
-                if (currentCooldown < 0) currentCooldown = 0;
-                updateCooldownUI();
-            }
-        }, 200);
-
-        function updateCooldownUI() {
-            document.getElementById("cooldownTimerText").innerText = `${currentCooldown.toFixed(1)}с / 300с`;
-            document.getElementById("cooldownProgressBar").style.width = `${(currentCooldown / 300) * 100}%`;
-        }
-    </script>
+    }
+</script>
 </body>
 </html>
