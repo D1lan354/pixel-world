@@ -17,6 +17,7 @@
             color: #e0e0e0;
             font-family: 'Segoe UI', Roboto, sans-serif;
             overflow: hidden;
+            user-select: none;
         }
         
         #viewport {
@@ -85,7 +86,6 @@
         }
         input[type="color"] { height: 45px; cursor: pointer; padding: 5px; }
         
-        /* Зручна підказка стану курсора */
         .mode-indicator {
             font-size: 12px;
             margin-top: 3px;
@@ -136,15 +136,12 @@
 
     <script>
         // ===================================================
-        // 1. СИНТЕТИЗАТОР ЗВУКІВ (Web Audio API)
+        // 1. СИНТЕТИЗАТОР ЗВУКІВ
         // ===================================================
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
         function playSound(type) {
-            // Перевірка стану аудіо-контексту (браузери вимагають кліку перед стартом звуку)
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
 
             const osc = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
@@ -152,17 +149,15 @@
             gainNode.connect(audioCtx.destination);
 
             if (type === 'click') {
-                // Приємний ретро-клік успішного малювання
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // Ре (D5)
-                osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.08); // Ля
+                osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); 
+                osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.08); 
                 gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
                 osc.start();
                 osc.stop(audioCtx.currentTime + 0.1);
             } 
             else if (type === 'blocked') {
-                // Глухий звук помилки (клік по тому самому кольору)
                 osc.type = 'triangle';
                 osc.frequency.setValueAtTime(150, audioCtx.currentTime); 
                 gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
@@ -171,7 +166,6 @@
                 osc.stop(audioCtx.currentTime + 0.08);
             } 
             else if (type === 'cooldown') {
-                // Суворий баззер перегріву бази
                 osc.type = 'sawtooth';
                 osc.frequency.setValueAtTime(90, audioCtx.currentTime);
                 osc.frequency.linearRampToValueAtTime(70, audioCtx.currentTime + 0.2);
@@ -186,11 +180,22 @@
         // 2. ІНІЦІАЛІЗАЦІЯ FIREBASE
         // ===================================================
         const firebaseConfig = {
-            databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com"
+            apiKey: "AIzaSyArIgEB93kQ_2xfJAjkvGuKVhYqwoKpB54",
+            authDomain: "pixel-world-db.firebaseapp.com",
+            databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com",
+            projectId: "pixel-world-db",
+            storageBucket: "pixel-world-db.firebasestorage.app",
+            messagingSenderId: "987006631539",
+            appId: "1:987006631539:web:8f8b732de1d26fa2ce3406"
         };
-        firebase.initializeApp(firebaseConfig);
+        
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
+        const mapRef = database.ref('multiplayer_map');
 
+        // ===================================================
+        // 3. ЗМІННІ СЕРЕДОВИЩА
+        // ===================================================
         const canvas = document.getElementById("pixelCanvas");
         const ctx = canvas.getContext("2d");
         const viewport = document.getElementById("viewport");
@@ -201,7 +206,6 @@
         canvas.width = MAP_SIZE;
         canvas.height = MAP_SIZE;
 
-        // Початкова позиція камери
         let zoomLevel = 0.5; 
         let posX = (window.innerWidth - MAP_SIZE * zoomLevel) / 2;
         let posY = (window.innerHeight - MAP_SIZE * zoomLevel) / 2;
@@ -210,11 +214,16 @@
         let currentColorCode = "rhh"; 
         let currentCooldown = 0;
 
+        // Словник кольорів
         const colorPaletteMap = {
             "aaa": "#ffffff", 
             "zaa": "#afe7f3", 
             "rhh": "#a65d5d"  
         };
+
+        // Заливка фону (океан)
+        ctx.fillStyle = colorPaletteMap["zaa"];
+        ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
 
         function updateTransform() {
             canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${zoomLevel})`;
@@ -222,7 +231,46 @@
         }
         updateTransform();
 
-        // Слідкуємо за зміною інструменту для UI
+        // ===================================================
+        // 4. СИНХРОНІЗАЦІЯ З БАЗОЮ (LIVE)
+        // ===================================================
+        function drawPixel(x, y, colorCode) {
+            ctx.fillStyle = colorPaletteMap[colorCode] || "#000000"; // Якщо коду немає, малюємо чорним для перевірки
+            ctx.fillRect(x, y, 1, 1);
+        }
+
+        // Завантаження всієї карти при старті
+        mapRef.once('value').then((snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                mapData = data;
+                for (let y in mapData) {
+                    for (let x in mapData[y]) {
+                        drawPixel(parseInt(x), parseInt(y), mapData[y][x]);
+                    }
+                }
+            }
+            listenForLiveUpdates();
+        });
+
+        // Слухаємо оновлення рядків (Y)
+        function listenForLiveUpdates() {
+            const handleUpdate = (snapshot) => {
+                const y = snapshot.key;
+                const rowData = snapshot.val();
+                if (!mapData[y]) mapData[y] = {};
+                for (let x in rowData) {
+                    mapData[y][x] = rowData[x];
+                    drawPixel(parseInt(x), parseInt(y), rowData[x]);
+                }
+            };
+            mapRef.on('child_changed', handleUpdate);
+            mapRef.on('child_added', handleUpdate);
+        }
+
+        // ===================================================
+        // 5. КЕРУВАННЯ ІНТЕРФЕЙСОМ ТА ПЕНЗЛЕМ
+        // ===================================================
         brushSelect.addEventListener('change', () => {
             if (parseInt(brushSelect.value) === 0) {
                 modeLabel.innerText = "Режим: Перетягування карти";
@@ -241,53 +289,13 @@
             else if (hex === "#afe7f3") currentColorCode = "zaa";
             else {
                 currentColorCode = "rhh";
-                colorPaletteMap["rhh"] = hex;
+                colorPaletteMap["rhh"] = hex; // Оновлюємо візуальний колір локально
             }
             document.getElementById('colorCodeText').innerText = currentColorCode;
         });
 
         // ===================================================
-        // 3. СИНХРОНІЗАЦІЯ СВІТУ
-        // ===================================================
-        ctx.fillStyle = "#afe7f3";
-        ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
-
-        database.ref().once('value').then((snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                mapData = data;
-                renderFullMap();
-            }
-            listenForLiveUpdates();
-        });
-
-        function listenForLiveUpdates() {
-            database.ref().on('child_changed', (snapshot) => {
-                const y = snapshot.key;
-                const rowData = snapshot.val();
-                if (!mapData[y]) mapData[y] = {};
-                for (let x in rowData) {
-                    mapData[y][x] = rowData[x];
-                    drawPixel(parseInt(x), parseInt(y), rowData[x]);
-                }
-            });
-        }
-
-        function renderFullMap() {
-            for (let y in mapData) {
-                for (let x in mapData[y]) {
-                    drawPixel(parseInt(x), parseInt(y), mapData[y][x]);
-                }
-            }
-        }
-
-        function drawPixel(x, y, colorCode) {
-            ctx.fillStyle = colorPaletteMap[colorCode] || colorCode; 
-            ctx.fillRect(x, y, 1, 1);
-        }
-
-        // ===================================================
-        // 4. ДИНАМІЧНИЙ ЗУМ В ТОЧКУ КУРСОВА
+        // 6. НАВІГАЦІЯ: ЗУМ ТА ТЯГАННЯ КАМЕРИ
         // ===================================================
         viewport.addEventListener("wheel", (event) => {
             event.preventDefault();
@@ -313,17 +321,13 @@
             updateTransform();
         }, { passive: false });
 
-        // ===================================================
-        // 5. КЕРУВАННЯ МИШЕЮ (ТЯГАТИ / МАЛЮВАТИ)
-        // ===================================================
         let isDragging = false;
         let startX, startY;
 
         viewport.addEventListener("mousedown", (e) => {
             const currentBrush = parseInt(brushSelect.value);
 
-            // А) Якщо обрано "Режим перегляду (0)" — перетягуємо мапу просто на ЛКМ
-            // Б) Якщо затиснуто коліщатко (1) або ПКМ (2) — перетягуємо завжди
+            // Режим перетягування
             if (currentBrush === 0 || e.button === 1 || e.button === 2) {
                 isDragging = true;
                 if(currentBrush === 0) viewport.style.cursor = "grabbing";
@@ -333,10 +337,10 @@
                 return;
             }
 
-            // В) ЛОГІКА МАЛЮВАННЯ (ЛКМ у режимі пензля)
+            // Режим малювання
             if (e.button === 0 && currentBrush > 0) {
                 if (currentCooldown >= 300) {
-                    playSound('cooldown'); // Звук перегріву
+                    playSound('cooldown');
                     return;
                 }
 
@@ -352,15 +356,17 @@
                         const ty = clickY + dy;
 
                         if (tx >= 0 && tx < MAP_SIZE && ty >= 0 && ty < MAP_SIZE) {
-                            const existingColor = (mapData[ty] && mapData[ty][tx]) ? mapData[ty][tx] : "zaa";
-                            let activeColor = currentColorCode === "rhh" ? colorPaletteMap["rhh"] : currentColorCode;
+                            // Отримуємо поточний КОД пікселя
+                            const existingCode = (mapData[ty] && mapData[ty][tx]) ? mapData[ty][tx] : "zaa";
 
-                            if (existingColor !== activeColor) {
+                            if (existingCode !== currentColorCode) {
+                                // Записуємо локально
                                 if (!mapData[ty]) mapData[ty] = {};
-                                mapData[ty][tx] = activeColor;
-                                drawPixel(tx, ty, activeColor);
+                                mapData[ty][tx] = currentColorCode;
+                                drawPixel(tx, ty, currentColorCode);
 
-                                database.ref(`${ty}/${tx}`).set(activeColor);
+                                // Відправляємо КОД у базу даних
+                                mapRef.child(`${ty}/${tx}`).set(currentColorCode);
                                 pixelsChanged++;
                             }
                         }
@@ -371,9 +377,9 @@
                     currentCooldown += pixelsChanged * 1.5;
                     if (currentCooldown > 300) currentCooldown = 300;
                     updateCooldownUI();
-                    playSound('click'); // Звук успішного пікселя
+                    playSound('click');
                 } else {
-                    playSound('blocked'); // Звук блокування дублю
+                    playSound('blocked');
                 }
             }
         });
@@ -393,7 +399,6 @@
         
         viewport.addEventListener("contextmenu", e => e.preventDefault());
 
-        // Трекер координат
         viewport.addEventListener('mousemove', (e) => {
             const x = Math.floor((e.clientX - posX) / zoomLevel);
             const y = Math.floor((e.clientY - posY) / zoomLevel);
@@ -403,7 +408,9 @@
             }
         });
 
-        // Робота таймера кулдауну
+        // ===================================================
+        // 7. СИСТЕМА ОХОЛОДЖЕННЯ
+        // ===================================================
         setInterval(() => {
             if (currentCooldown > 0) {
                 currentCooldown -= 0.2;
