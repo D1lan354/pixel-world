@@ -2,13 +2,10 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>Pixel Map Engine v6.6 — Повний Фікс</title>
+    <title>Pixel Map Engine v6.0 — Фікс інтерфейсу</title>
     <style>
         :root { --bg-main: #1a1a1a; --bg-panel: #2a2a2a; --bg-sidebar: #222; --text-color: #fff; --accent: #00ff00; }
-        .theme-light { --bg-main: #e0e0e0; --bg-panel: #ffffff; --bg-sidebar: #f0f0f0; --text-color: #000; --accent: #0077ff; }
-        .theme-cyber { --bg-main: #0c0014; --bg-panel: #1a0033; --bg-sidebar: #26004d; --text-color: #00ffff; --accent: #ff00ff; }
-
-        body { background: var(--bg-main); color: var(--text-color); font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 10px; margin: 0; user-select: none; transition: background 0.3s, color 0.3s; }
+        body { background: var(--bg-main); color: var(--text-color); font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 10px; margin: 0; user-select: none; }
         h1 { margin-top: 5px; margin-bottom: 2px; font-size: 22px; text-shadow: 0 0 5px var(--accent); }
         .hint { color: #888; font-size: 12px; margin-bottom: 10px; }
         .hotkey { color: #ffcc00; font-weight: bold; }
@@ -16,45 +13,38 @@
         #authScreen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 100; }
         .auth-box { background: #222; padding: 25px; border-radius: 12px; border: 2px solid #444; width: 320px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 0 20px rgba(0,255,0,0.2); color: #fff; }
         .auth-box h2 { margin: 0; font-size: 18px; text-align: center; color: var(--accent); }
-        .auth-box input { background: #111; border: 1px solid #555; padding: 8px; color: #fff; border-radius: 4px; font-size: 14px; }
-        .auth-box .reg-hint { font-size: 11px; color: #aaa; margin-top: -5px; }
-        .auth-box .btn-group { display: flex; gap: 10px; margin-top: 5px; }
-        .auth-box button { flex: 1; background: #333; border: 1px solid #666; color: #fff; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        .auth-box input { background: #111; border: 1px solid #555; padding: 8px; color: #fff; border-radius: 4px; }
+        .auth-box button { background: #333; border: 1px solid #666; color: #fff; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .auth-box button:hover { background: var(--accent); color: #000; }
-        .auth-box .reg-btn { background: #111; border: 1px solid var(--accent); color: var(--accent); }
 
-        .main-layout { display: flex; gap: 15px; background: var(--bg-panel); padding: 15px; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.4); width: 95vw; max-width: 1250px; justify-content: center; }
+        .main-layout { display: flex; gap: 15px; background: var(--bg-panel); padding: 15px; border-radius: 12px; width: 95vw; max-width: 1250px; justify-content: center; }
         .canvas-container { position: relative; display: flex; overflow: hidden; background: #111; border-radius: 6px; border: 2px solid #444; flex-grow: 1; height: 650px; }
         
-        #hud { position: absolute; top: 15px; left: 15px; background: rgba(0, 0, 0, 0.85); padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 11px; border: 1px solid #444; pointer-events: none; display: flex; flex-direction: column; gap: 4px; z-index: 10; color: #fff; }
-        .hud-row { display: flex; gap: 12px; align-items: center; pointer-events: auto; }
+        #hud { position: absolute; top: 15px; left: 15px; background: rgba(0, 0, 0, 0.85); padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 11px; border: 1px solid #444; z-index: 10; color: #fff; }
+        .hud-row { display: flex; gap: 12px; align-items: center; }
 
         canvas#mapCanvas { background: #fff; width: 100%; height: 100%; display: block; }
         
         .sidebar { display: flex; flex-direction: column; gap: 12px; min-width: 310px; max-width: 310px; background: var(--bg-sidebar); padding: 12px; border-radius: 8px; border: 1px solid #444; overflow-y: auto; height: 650px; box-sizing: border-box; }
         .section { display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid #444; padding-bottom: 10px; }
-        h3 { margin: 0 0 2px 0; font-size: 12px; color: #aaa; text-transform: uppercase; }
+        h3 { margin: 0 0 2px 0; font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
 
         .color-picker-wrapper { display: flex; align-items: center; gap: 15px; justify-content: center; }
         input[type="color"] { width: 45px; height: 45px; border: none; border-radius: 50%; cursor: pointer; background: none; }
         .color-box { width: 35px; height: 35px; border: 2px solid #fff; border-radius: 6px; }
-        #info { font-family: monospace; background: #111; padding: 6px; border-radius: 6px; text-align: center; font-size: 12px; color: #fff; }
+        #info { font-family: monospace; background: #111; padding: 6px; border-radius: 6px; text-align: center; font-size: 12px; }
         
         .setting-item { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
-        input[type="checkbox"], select { cursor: pointer; background: #333; color: #fff; border: 1px solid #555; padding: 2px; }
-        input[type="range"] { width: 95px; }
+        select, input[type="range"] { background: #333; color: #fff; border: 1px solid #555; padding: 2px; }
 
-        /* Кулдаун */
         .cooldown-wrapper { background: #111; padding: 6px; border-radius: 6px; border: 1px solid #444; }
         .cooldown-bar-container { background: #333; width: 100%; height: 12px; border-radius: 3px; overflow: hidden; margin-top: 4px; }
         #cooldownBar { background: #00ff00; width: 0%; height: 100%; transition: width 0.1s linear; }
-        .cooldown-blocked { color: #ff4444 !important; font-weight: bold; }
 
         canvas.vis-canvas { background: #111; border: 1px solid #444; border-radius: 4px; display: block; }
         .status-on { color: #00ff00; font-weight: bold; }
         .status-off { color: #ff4444; font-weight: bold; }
-        .logout-btn { background: #aa2222; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; }
-        .logout-btn:hover { background: #ff3333; }
+        .logout-btn { background: #aa2222; color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -62,26 +52,23 @@
     <div id="authScreen">
         <div class="auth-box">
             <h2>Вхід у Pixel World</h2>
-            <input type="email" id="authEmail" placeholder="Ваш Gmail (Email)" required>
-            <input type="password" id="authPassword" placeholder="Пароль (мін. 6 символів)" required>
-            <input type="text" id="authNickname" placeholder="Нікнейм (Тільки для Реєстрації)">
-            <div class="reg-hint">* Нікнейм потрібен лише під час першої реєстрації акаунта.</div>
-            <div class="btn-group">
-                <button type="button" onclick="handleLogin()">Увійти</button>
-                <button type="button" class="reg-btn" onclick="handleRegister()">Реєстрація</button>
-            </div>
+            <input type="email" id="authEmail" placeholder="Ваш Email" required>
+            <input type="password" id="authPassword" placeholder="Пароль" required>
+            <input type="text" id="authNickname" placeholder="Нікнейм (Для реєстрації)">
+            <button type="button" onclick="handleLogin()">Увійти</button>
+            <button type="button" style="background:#111; border:1px solid #00ff00; color:#00ff00;" onclick="handleRegister()">Реєстрація</button>
         </div>
     </div>
 
-    <h1>Пікс Мапа v6.6 (Мультиплеєр)</h1>
-    <div class="hint">Світ: <span class="hotkey">Онлайн</span> | <span class="hotkey">Shift</span> — Пензель | Коліщатко — Зум</div>
+    <h1>Пікс Мапа v6.0 (Мультиплеєр)</h1>
+    <div class="hint">Світ: <span class="hotkey">Спільний онлайн</span> | <span class="hotkey">Shift</span> — режим пензля | <span class="hotkey">Ctrl + Клік</span> — піпетка</div>
 
     <div class="main-layout">
         <div class="canvas-container" id="canvasContainer">
             <div id="hud">
                 <div class="hud-row">
-                    <div>Гравець: <strong id="hudUser" style="color:#ffcc00;">Завантаження...</strong></div>
-                    <button class="logout-btn" onclick="handleLogout()">Вийти</button>
+                    <div>Гравець: <strong id="hudUser" style="color:#ffcc00;">—</strong> <button class="logout-btn" onclick="handleLogout()">Вийти</button></div>
+                    <div>Ранг: <span style="color:#00ffff;">Мультиплеєр</span></div>
                 </div>
                 <div class="hud-row" style="margin-top: 4px; border-top: 1px solid #444; padding-top: 4px;">
                     <div>X: <span id="hudX">0</span> | Y: <span id="hudY">0</span></div>
@@ -97,9 +84,9 @@
                 <h3>Палітра</h3>
                 <div class="color-picker-wrapper">
                     <input type="color" id="colorPicker" value="#ff0000">
-                    <div id="matchedColorBox" class="color-box"></div>
+                    <div id="matchedColorBox" class="color-box" style="background: #ff0000;"></div>
                 </div>
-                <div id="info">Код кольору: <strong id="colorCode" style="color: #00ff00;">zzz</strong></div>
+                <div id="info">Код кольору: <strong id="colorCode" style="color: #00ff00;">aaa</strong></div>
             </div>
 
             <div class="section">
@@ -126,10 +113,8 @@
                 </div>
                 <div class="setting-item">
                     <label>Тема інтерфейсу</label>
-                    <select id="themeSelector" onchange="changeTheme(this.value)">
+                    <select id="themeSelector">
                         <option value="dark">Темна (Стандарт)</option>
-                        <option value="light">Світла</option>
-                        <option value="cyber">Кіберпанк</option>
                     </select>
                 </div>
                 <div class="setting-item">
@@ -144,8 +129,10 @@
 
             <div class="section">
                 <h3>Візуалізація звуку</h3>
-                <canvas id="visualizerCanvas" class="vis-canvas" width="285" height="45"></canvas>
-                <canvas id="formulaCanvas" class="vis-canvas" width="285" height="45"></canvas>
+                <div style="font-size: 10px; color:#aaa;">ДИНАМІЧНА ХВИЛЯ:</div>
+                <canvas id="visualizerCanvas" class="vis-canvas" width="285" height="40"></canvas>
+                <div style="font-size: 10px; color:#aaa; margin-top:4px;">ГРАФІК КОДУ F(T):</div>
+                <canvas id="formulaCanvas" class="vis-canvas" width="285" height="40"></canvas>
             </div>
 
             <div class="section">
@@ -159,7 +146,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-
     <script src="database.js"></script>
     <script src="player.js"></script>
 </body>
