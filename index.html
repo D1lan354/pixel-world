@@ -70,6 +70,42 @@
         ctx.fillRect(x, y, 1, 1);
     }
 
+
+    // === ВИПРАВЛЕНА ЛОГІКА МИШІ ===
+canvas.addEventListener("mousedown", (e) => {
+    // Якщо режим малювання - малюємо
+    if(isPaintingMode) {
+        paint(e);
+    } 
+    // Якщо режим навігації - активуємо перетягування
+    else {
+        isDragging = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        canvas.style.cursor = "grabbing";
+    }
+});
+
+window.addEventListener("mousemove", (e) => {
+    // Малювання при затиснутій кнопці, якщо режим малювання увімкнено
+    if(isPaintingMode && e.buttons === 1) {
+        paint(e);
+    } 
+    // Навігація при затиснутій кнопці, якщо режим малювання вимкнено
+    else if(isDragging) {
+        posX += (e.clientX - lastX);
+        posY += (e.clientY - lastY);
+        lastX = e.clientX;
+        lastY = e.clientY;
+        updateTransform();
+    }
+});
+
+window.addEventListener("mouseup", () => {
+    isDragging = false;
+    canvas.style.cursor = isPaintingMode ? "crosshair" : "grab";
+});
+
     // Решта логіки (Shift, Зум, Малювання) така ж, як ми узгодили
     window.addEventListener("keydown", (e) => {
         if(e.key === "Shift") {
