@@ -23,24 +23,29 @@ const colorPaletteMap = {
 };
 
 function handleCanvasClick(event) {
-    // 1. Отримуємо координати
     const rect = canvas.getBoundingClientRect();
-    const x = Math.floor((event.clientX - rect.left) / zoomLevel);
-    const y = Math.floor((event.clientY - rect.top) / zoomLevel);
+    const tx = Math.floor((event.clientX - rect.left) / zoomLevel);
+    const ty = Math.floor((event.clientY - rect.top) / zoomLevel);
 
-    // 2. ЗАХИСТ: Перевіряємо, чи ми вже не поставили там такий самий колір
-    // Якщо pixel вже має currentColorCode, просто виходимо і не витрачаємо кулдаун
-    // Припускаємо, що у нас є змінна 'mapData', де лежить поточна карта
-    if (mapData[y] && mapData[y][x] === currentColorCode) {
-        return; 
+    // Перевіряємо, чи взагалі існують дані для цього рядка
+    if (typeof mapData !== 'undefined' && mapData[ty]) {
+        const existingColor = mapData[ty][tx];
+
+        // Виводимо в консоль для перевірки (можеш потім видалити)
+        console.log(`Клік на ${tx}:${ty}. Колір на карті: ${existingColor}, Твій колір: ${currentColorCode}`);
+
+        // ЯКЩО КОЛІР ОДНАКОВИЙ — Повністю блокуємо клік!
+        if (existingColor === currentColorCode) {
+            console.log("БЛОКУВАННЯ: Колір збігається, запит скасовано!");
+            return; // Виходимо, кулдаун НЕ знімається, в базу НІЧОГО не йде
+        }
     }
 
-    // 3. Якщо колір інший — ставимо піксель
-    database.ref(`${y}/${x}`).set(currentColorCode);
+    // Якщо перевірку пройдено (колір новий), тоді малюємо:
+    database.ref(`${ty}/${tx}`).set(currentColorCode);
     
-    // 4. Тільки тут додаємо кулдаун
-    currentCooldown += 2; 
-    updateCooldownUI();
+    // ТУТ ТВІЙ КОД НАРАХУВАННЯ КУЛДАУНУ
+    // наприклад: startCooldown();
 }
 
 // Протилежний пошук (з hex у твій короткий 3-символьний код)
