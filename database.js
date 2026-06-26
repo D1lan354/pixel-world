@@ -17,7 +17,7 @@ const mapRef = db.ref('multiplayer_map');
 
 window.mapData = {};
 
-// Глобальний слухач авторизації
+// Слухач авторизації
 auth.onAuthStateChanged((user) => {
     const authScreen = document.getElementById('authScreen');
     const hudUser = document.getElementById('hudUser');
@@ -26,7 +26,6 @@ auth.onAuthStateChanged((user) => {
         if(authScreen) authScreen.style.display = 'none';
         window.currentUser = user;
         
-        // Витягуємо збережений нікнейм з Firebase Database
         db.ref('users/' + user.uid).once('value').then((snapshot) => {
             let userData = snapshot.val();
             if (userData && userData.nickname) {
@@ -43,7 +42,6 @@ auth.onAuthStateChanged((user) => {
     if (typeof window.redrawCanvas === "function") window.redrawCanvas();
 });
 
-// Реєстрація з нікнеймом
 function handleRegister() {
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value.trim();
@@ -53,7 +51,6 @@ function handleRegister() {
     
     auth.createUserWithEmailAndPassword(email, password)
         .then((userCredential) => {
-            // Зберігаємо нікнейм у базі даних, прив'язуючи до UID акаунта
             return db.ref('users/' + userCredential.user.uid).set({
                 nickname: nickname,
                 email: email
@@ -63,7 +60,6 @@ function handleRegister() {
         .catch((error) => { alert("Помилка реєстрації: " + error.message); });
 }
 
-// Вхід за Email
 function handleLogin() {
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value.trim();
@@ -73,31 +69,30 @@ function handleLogin() {
         .catch((error) => { alert("Помилка входу: " + error.message); });
 }
 
-// Залізобетонний вихід
 function handleLogout() {
     auth.signOut().then(() => {
         document.getElementById('authEmail').value = "";
         document.getElementById('authPassword').value = "";
         document.getElementById('authNickname').value = "";
+        window.location.reload(); // Перезавантажуємо сторінку для 100% скидання стану гри
     }).catch((err) => { console.error("Помилка при виході:", err); });
 }
 
-// Синхронізація карти
 mapRef.on('value', (snapshot) => {
     window.mapData = snapshot.val() || {};
     if (typeof window.redrawCanvas === "function") window.redrawCanvas();
 });
 
-// Розумна функція відправки: перевіряє чи змінився колір перед записом!
+// Функція відправки пікселя з перевіркою дублікатів кольору
 function sendPixel(x, y, colorCode) {
     if(!window.currentUser) return false;
     let key = x + '_' + y;
     
-    // Якщо клітинка вже розмальована цим кольором — ігноруємо клік
+    // Якщо колір у базі вже такий самий, ігноруємо запит
     if (window.mapData && window.mapData[key] === colorCode) {
         return false; 
     }
     
     db.ref('multiplayer_map/' + key).set(colorCode);
-    return true; // Повертає true, якщо піксель реально оновився
+    return true; 
 }
