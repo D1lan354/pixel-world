@@ -2,7 +2,7 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>Pixel Map Engine v6.5 — Hardcore Update</title>
+    <title>Pixel Map Engine v6.6 — Повний Фікс</title>
     <style>
         :root { --bg-main: #1a1a1a; --bg-panel: #2a2a2a; --bg-sidebar: #222; --text-color: #fff; --accent: #00ff00; }
         .theme-light { --bg-main: #e0e0e0; --bg-panel: #ffffff; --bg-sidebar: #f0f0f0; --text-color: #000; --accent: #0077ff; }
@@ -44,12 +44,11 @@
         input[type="checkbox"], select { cursor: pointer; background: #333; color: #fff; border: 1px solid #555; padding: 2px; }
         input[type="range"] { width: 95px; }
 
-        /* Шкала кулдауну */
+        /* Кулдаун */
         .cooldown-wrapper { background: #111; padding: 6px; border-radius: 6px; border: 1px solid #444; }
         .cooldown-bar-container { background: #333; width: 100%; height: 12px; border-radius: 3px; overflow: hidden; margin-top: 4px; }
-        #cooldownBar { background: #00ff00; width: 0%; height: 100%; transition: width 0.1s linear, background-color 0.3s; }
-        .cooldown-blocked { color: #ff4444 !important; font-weight: bold; animation: blink 1s infinite; }
-        @keyframes blink { 50% { opacity: 0.5; } }
+        #cooldownBar { background: #00ff00; width: 0%; height: 100%; transition: width 0.1s linear; }
+        .cooldown-blocked { color: #ff4444 !important; font-weight: bold; }
 
         canvas.vis-canvas { background: #111; border: 1px solid #444; border-radius: 4px; display: block; }
         .status-on { color: #00ff00; font-weight: bold; }
@@ -74,7 +73,7 @@
         </div>
     </div>
 
-    <h1>Пікс Мапа v6.5 (Мультиплеєр)</h1>
+    <h1>Пікс Мапа v6.6 (Мультиплеєр)</h1>
     <div class="hint">Світ: <span class="hotkey">Онлайн</span> | <span class="hotkey">Shift</span> — Пензель | Коліщатко — Зум</div>
 
     <div class="main-layout">
@@ -106,8 +105,8 @@
             <div class="section">
                 <h3>Перегрів (Кулдаун)</h3>
                 <div class="cooldown-wrapper">
-                    <div style="font-size: 11px; display:flex; justify-content:between; width:100%;">
-                        <span>Таймер: <strong id="cooldownTimer">0.0с</strong> / 300с</span>
+                    <div style="font-size: 11px;">
+                        Таймер: <strong id="cooldownTimer">0.0с</strong> / 300с
                     </div>
                     <div class="cooldown-bar-container">
                         <div id="cooldownBar"></div>
