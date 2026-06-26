@@ -20,10 +20,12 @@ let soundSettings = {
     switch: { wave: 'square', freq: 500, duration: 0.10, filter: 8000, formula: "0.2 * Math.sin(t * 0.03) * Math.exp(-t * 0.01)" }
 };
 
+// Функція зміни теми (Тепер знову працює)
 function changeTheme(theme) {
     document.body.className = "";
     if(theme !== 'dark') document.body.classList.add('theme-' + theme);
 }
+window.changeTheme = changeTheme;
 
 function initAudio() {
     if (!audioCtx) {
@@ -168,7 +170,7 @@ canvas.addEventListener('mousemove', (e) => {
     const coords = screenToGrid(e.clientX, e.clientY);
     if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
         document.getElementById('hudX').innerText = coords.x; document.getElementById('hudY').innerText = coords.y;
-        if (isMouseDown && continuousDrawMode) {
+        if (isMouseDown && continuousDrawMode && window.currentUser) {
             sendPixel(coords.x, coords.y, selectedCode); playSoundFX('click');
             clickCount++; document.getElementById('hudClicks').innerText = clickCount;
         }
@@ -176,7 +178,7 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('mousedown', (e) => {
-    if (!window.currentUser) return; // Блокуємо кліки, якщо не ввійшов
+    if (!window.currentUser) return; 
     if (e.button === 1 || e.button === 2) { isDragging = true; startPan.x = e.clientX - camera.x; startPan.y = e.clientY - camera.y; e.preventDefault(); return; }
     if (e.button === 0) {
         isMouseDown = true; const coords = screenToGrid(e.clientX, e.clientY);
@@ -205,15 +207,18 @@ canvas.addEventListener('wheel', (e) => {
     document.getElementById('hudZoom').innerText = Math.round(zoom * 100) + "%"; redrawCanvas();
 });
 
+// Відновлено роботу чексбокса сітки
 document.getElementById('gridCheckbox').addEventListener('change', (e) => { showGrid = e.target.checked; redrawCanvas(); });
+
+// Відновлено роботу регулювання звуку
 document.getElementById('volumeSlider').addEventListener('input', (e) => { soundVolume = e.target.value / 100; });
 
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Shift') {
         e.preventDefault(); continuousDrawMode = !continuousDrawMode; playSoundFX('switch');
         const statusEl = document.getElementById('brushStatus');
-        if (continuousDrawMode) { statusEl.innerText = "Пензель"; statusEl.className = "status-on"; }
-        else { statusEl.innerText = "Крапка"; statusEl.className = "status-off"; }
+        if (continuousDrawMode) { statusEl.innerText = "Пензель (Затискання)"; statusEl.className = "status-on"; }
+        else { statusEl.innerText = "Крапка (Кліки)"; statusEl.className = "status-off"; }
     }
 });
 
