@@ -132,9 +132,12 @@
                 <div style="font-size: 10px; color:#aaa;">ДИНАМІЧНА ХВИЛЯ:</div>
                 <canvas id="visualizerCanvas" class="vis-canvas" width="285" height="40"></canvas>
                 <div style="font-size: 10px; color:#aaa; margin-top:4px;">ГРАФІК КОДУ F(T):</div>
-                <div class="sound-visualization">
-    <canvas id="visualizerCanvas"></canvas>
-    <canvas id="formulaCanvas"></canvas>
+<div style="margin-top: 10px;">
+    <label style="display: block; color: #aaa; font-size: 11px; margin-bottom: 4px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Код звуку f(t):</label>
+    <input type="text" id="audioFormulaInput" value="Math.sin(t * 0.2) * Math.exp(-t * 0.04)" 
+           style="width: 100%; background: #181818; color: #00ff00; border: 1px solid #333; padding: 6px 8px; font-family: 'Courier New', monospace; font-size: 12px; border-radius: 4px; box-sizing: border-box; outline: none; transition: border-color 0.2s;"
+           onfocus="this.style.borderColor='#00ff00'" onblur="this.style.borderColor='#333'"
+           oninput="if(window.updateAudioFormula) window.updateAudioFormula(this.value)">
 </div>
             </div>
 
