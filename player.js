@@ -16,7 +16,7 @@ window.addEventListener('resize', resizeCanvas);
 const MAP_WIDTH = 2048; const MAP_HEIGHT = 2048; const PIXEL_SIZE = 16; 
 
 let zoom = 1.0, maxZoom = 15.0, minZoom = 0.01;
-let camera = { x: 0, y: 0 };
+let camera = { x: 100, y: 100 };
 let showGrid = true, soundVolume = 0.5, continuousDrawMode = false, isDragging = false, isMouseDown = false, startPan = { x: 0, y: 0 };
 let audioCtx = null, analyserNode = null;
 let clickCount = 0;
@@ -26,49 +26,24 @@ const MAX_COOLDOWN = 300.0;
 
 let soundFormula = "Math.sin(t * 0.2) * Math.exp(-t * 0.04)";
 
-const formulaInput = document.getElementById('soundFormulaInput');
-if (formulaInput) {
-    formulaInput.addEventListener('input', (e) => {
-        soundFormula = e.target.value;
-        drawFormulaGraph();
-    });
+// Генерація палітри
+const alphabet = "abcdefghijklmnopqrstuvwxyz"; const palette = {}; 
+for (let r = 0; r < 26; r++) {
+    for (let g = 0; g < 26; g++) {
+        for (let b = 0; b < 26; b++) {
+            let rVal = Math.round(r * (255 / 25)), gVal = Math.round(g * (255 / 25)), bVal = Math.round(b * (255 / 25));
+            let code = alphabet[r] + alphabet[g] + alphabet[b];
+            palette[code] = { r: rVal, g: gVal, b: bVal, hex: `#${rVal.toString(16).padStart(2,'0')}${gVal.toString(16).padStart(2,'0')}${bVal.toString(16).padStart(2,'0')}` };
+        }
+    }
 }
-
-const audioConverter = document.getElementById('audioConverterInput');
-if (audioConverter) {
-    audioConverter.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            const tempAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            tempAudioCtx.decodeAudioData(event.target.result, function(buffer) {
-                const rawData = buffer.getChannelData(0); 
-                const samples = 100; 
-                const step = Math.floor(rawData.length / samples);
-                
-                let points = [];
-                for (let i = 0; i < samples; i++) {
-                    points.push(rawData[i * step].toFixed(2));
-                }
-                
-                let generatedFormula = `Math.sin(t * 0.5) * [${points.slice(0,15).join(',')}][Math.floor(t)%15] * Math.exp(-t * 0.02)`;
-                
-                soundFormula = generatedFormula;
-                if (formulaInput) formulaInput.value = generatedFormula;
-                drawFormulaGraph();
-                alert("Аудіо успішно конвертовано у формулу f(t)!");
-            });
-        };
-        reader.readAsArrayBuffer(file);
-    });
-}
+let selectedGameColor = "#ff0000", selectedCode = "aaa";
 
 if (!window.mapData) window.mapData = {};
 
+// НАДІЙНА ФУНКЦІЯ ВІДПРАВКИ ПІКСЕЛЯ З ПЕРЕВІРКОЮ НА ДУБЛІКАТ КОЛЬОРУ
 function sendPixel(x, y, code) {
-    // ПЕРЕВІРКА: Якщо цей піксель вже має такий самий колір — ігноруємо і не тратимо кулдаун
+    // Жорсткий блок: якщо колір вже такий самий — виходимо і повертаємо false
     if (window.mapData[x + '_' + y] === code) {
         return false; 
     }
@@ -79,10 +54,85 @@ function sendPixel(x, y, code) {
             firebase.database().ref('multiplayer_map/' + x + '_' + y).set(code);
         }
     } catch(e) {}
-    redrawCanvas();
     return true;
 }
 
+// Функція малювання карти
+function redrawCanvas() {
+    if (!ctx || !canvas) return;
+    
+    // Темно-сірий фон за межами полотна
+    ctx.fillStyle = "#141414"; 
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.save();
+    ctx.translate(camera.x, camera.y); ctx.scale(zoom, zoom);
+    
+    // ФОН КАРТИ ТЕПЕР ЧІТКО СВІТЛО-СІРИЙ (ЧУТЬ-ЧУТЬ СІРІШИЙ ЗА БІЛИЙ)
+    ctx.fillStyle = "#ededed";
+    ctx.fillRect(0, 0, MAP_WIDTH * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE);
+    
+    // Червона рамка карти
+    ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 2 / zoom;
+    ctx.strokeRect(0, 0, MAP_WIDTH * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE);
+
+    // Контрастна сітка
+    if (showGrid && zoom > 0.15) { 
+        ctx.strokeStyle = 'rgba(0,0,0,0.07)'; ctx.lineWidth = 0.5 / zoom; ctx.beginPath();
+        for (let x = 0; x <= MAP_WIDTH; x += 4) { ctx.moveTo(x * PIXEL_SIZE, 0); ctx.lineTo(x * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE); }
+        for (let y = 0; y <= MAP_HEIGHT; y += 4) { ctx.moveTo(0, y * PIXEL_SIZE); ctx.lineTo(MAP_WIDTH * PIXEL_SIZE, y * PIXEL_SIZE); }
+        ctx.stroke();
+    }
+
+    // Відображення пікселів
+    for (let key in window.mapData) {
+        let coords = key.split('_');
+        let x = parseInt(coords[0]), y = parseInt(coords[1]);
+        let code = window.mapData[key];
+        ctx.fillStyle = palette[code] ? palette[code].hex : "#ededed";
+        ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+    }
+    ctx.restore();
+}
+
+// Логіка використання пензля
+function executeBrushPainting(baseX, baseY) {
+    if (cooldownTime >= MAX_COOLDOWN) return;
+    
+    const brushSelector = document.getElementById('brushSizeSelector');
+    const size = brushSelector ? parseInt(brushSelector.value) : 1;
+    let offset = Math.floor(size / 2);
+    
+    let actualPaintedCount = 0;
+
+    for (let dx = -offset; dx <= offset; dx++) {
+        for (let dy = -offset; dy <= offset; dy++) {
+            let tx = baseX + dx;
+            let ty = baseY + dy;
+            if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
+                // Якщо піксель успішно пофарбовано (колір новий), додаємо до лічильника
+                if (sendPixel(tx, ty, selectedCode)) {
+                    actualPaintedCount++;
+                }
+            }
+        }
+    }
+
+    // Нараховуємо кулдаун тільки за реальні зміни
+    if (actualPaintedCount > 0) {
+        playSoundFX();
+        clickCount++;
+        const clicksEl = document.getElementById('hudClicks');
+        if (clicksEl) clicksEl.innerText = clickCount;
+        
+        // ТОЧНИЙ РОЗРАХУНОК: кожен новий піксель коштує 0.5с (5x5 = 25 пікселів * 0.5с = 12.5с)
+        cooldownTime = Math.min(MAX_COOLDOWN, cooldownTime + (actualPaintedCount * 0.5));
+        updateCooldownUI();
+        redrawCanvas();
+    }
+}
+
+// Інші обробники...
 try {
     if (typeof firebase !== 'undefined' && firebase.database) {
         firebase.database().ref('multiplayer_map').on('value', (snapshot) => {
@@ -107,33 +157,24 @@ function initAudio() {
 function playSoundFX() {
     initAudio(); 
     if (soundVolume === 0 || !audioCtx) return;
-
     try {
         if (audioCtx.state === 'suspended') audioCtx.resume();
-        
         const duration = 0.2;
         const sampleRate = audioCtx.sampleRate;
         const bufferSize = sampleRate * duration;
         const buffer = audioCtx.createBuffer(1, bufferSize, sampleRate);
         const data = buffer.getChannelData(0);
-
         let waveFunction = new Function('t', `try { return ${soundFormula}; } catch(e) { return 0; }`);
-
         for (let i = 0; i < bufferSize; i++) {
             let t = (i / sampleRate) * 1000; 
             let sampleValue = waveFunction(t);
             if (isNaN(sampleValue)) sampleValue = 0;
             data[i] = Math.max(-1, Math.min(1, sampleValue * soundVolume * 0.5));
         }
-
         const bufferSource = audioCtx.createBufferSource();
         bufferSource.buffer = buffer;
-        
-        if (analyserNode) {
-            bufferSource.connect(analyserNode);
-        } else {
-            bufferSource.connect(audioCtx.destination);
-        }
+        if (analyserNode) bufferSource.connect(analyserNode);
+        else bufferSource.connect(audioCtx.destination);
         bufferSource.start();
     } catch(e) {}
 }
@@ -161,10 +202,8 @@ function drawFormulaGraph() {
     fCtx.strokeStyle = '#222'; fCtx.lineWidth = 1; fCtx.beginPath();
     fCtx.moveTo(0, fCanvas.height / 2); fCtx.lineTo(fCanvas.width, fCanvas.height / 2); fCtx.stroke();
     fCtx.strokeStyle = '#0088ff'; fCtx.lineWidth = 1.5; fCtx.beginPath();
-    
     let sampleRate = 100;
     let waveFunction = new Function('t', `try { return ${soundFormula}; } catch(e) { return 0; }`);
-    
     for (let t = 0; t < sampleRate; t++) {
         let val = waveFunction(t);
         if (isNaN(val)) val = 0;
@@ -174,54 +213,6 @@ function drawFormulaGraph() {
     }
     fCtx.stroke();
 }
-
-function executeBrushPainting(baseX, baseY) {
-    if (cooldownTime >= MAX_COOLDOWN) return;
-    
-    const brushSelector = document.getElementById('brushSizeSelector');
-    const size = brushSelector ? parseInt(brushSelector.value) : 1;
-    let offset = Math.floor(size / 2);
-    
-    let actualPaintedCount = 0;
-
-    for (let dx = -offset; dx <= offset; dx++) {
-        for (let dy = -offset; dy <= offset; dy++) {
-            let tx = baseX + dx;
-            let ty = baseY + dy;
-            if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
-                // Якщо функція повернула true — значить колір реально змінився
-                let success = sendPixel(tx, ty, selectedCode);
-                if (success) {
-                    actualPaintedCount++;
-                }
-            }
-        }
-    }
-
-    // Кулдаун додається тільки якщо ми реально зафарбували нові клітини!
-    if (actualPaintedCount > 0) {
-        playSoundFX();
-        clickCount++;
-        const clicksEl = document.getElementById('hudClicks');
-        if (clicksEl) clicksEl.innerText = clickCount;
-        
-        // Розумний прорахунок кулдауну: 0.4с за кожен новий піксель (замість 1.5с)
-        cooldownTime = Math.min(MAX_COOLDOWN, cooldownTime + (actualPaintedCount * 0.4));
-        updateCooldownUI();
-    }
-}
-
-const alphabet = "abcdefghijklmnopqrstuvwxyz"; const palette = {}; 
-for (let r = 0; r < 26; r++) {
-    for (let g = 0; g < 26; g++) {
-        for (let b = 0; b < 26; b++) {
-            let rVal = Math.round(r * (255 / 25)), gVal = Math.round(g * (255 / 25)), bVal = Math.round(b * (255 / 25));
-            let code = alphabet[r] + alphabet[g] + alphabet[b];
-            palette[code] = { r: rVal, g: gVal, b: bVal, hex: `#${rVal.toString(16).padStart(2,'0')}${gVal.toString(16).padStart(2,'0')}${bVal.toString(16).padStart(2,'0')}` };
-        }
-    }
-}
-let selectedGameColor = "#ff0000", selectedCode = "aaa";
 
 function findNearestColor(hexColor) {
     let r = parseInt(hexColor.slice(1, 3), 16), g = parseInt(hexColor.slice(3, 5), 16), b = parseInt(hexColor.slice(5, 7), 16);
@@ -233,6 +224,15 @@ function findNearestColor(hexColor) {
     return { code: nearestCode, hex: nearestHex };
 }
 
+function screenToGrid(clientX, clientY) {
+    if (!canvas) return {x: 0, y: 0};
+    const rect = canvas.getBoundingClientRect();
+    return { 
+        x: Math.floor((clientX - rect.left - camera.x) / (PIXEL_SIZE * zoom)), 
+        y: Math.floor((clientY - rect.top - camera.y) / (PIXEL_SIZE * zoom)) 
+    };
+}
+
 const picker = document.getElementById('colorPicker');
 if (picker) {
     picker.addEventListener('input', (e) => {
@@ -241,52 +241,6 @@ if (picker) {
         document.getElementById('matchedColorBox').style.backgroundColor = nearest.hex;
         document.getElementById('colorCode').innerText = nearest.code;
     });
-}
-
-function redrawCanvas() {
-    if (!ctx || !canvas) return;
-    
-    // Очищення фону за межами карти (темне приємне оточення)
-    ctx.fillStyle = "#1c1c1c"; 
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    ctx.save();
-    ctx.translate(camera.x, camera.y); ctx.scale(zoom, zoom);
-    
-    // Колір самої карти тепер СВІТЛО-СІРИЙ за замовчуванням (замість чорного)
-    ctx.fillStyle = "#e5e5e5";
-    ctx.fillRect(0, 0, MAP_WIDTH * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE);
-    
-    // Червона рамка кордону карти
-    ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 2 / zoom;
-    ctx.strokeRect(0, 0, MAP_WIDTH * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE);
-
-    // Малювання тонкої контрастної сітки
-    if (showGrid && zoom > 0.15) { 
-        ctx.strokeStyle = 'rgba(0,0,0,0.06)'; ctx.lineWidth = 0.5 / zoom; ctx.beginPath();
-        for (let x = 0; x <= MAP_WIDTH; x += 4) { ctx.moveTo(x * PIXEL_SIZE, 0); ctx.lineTo(x * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE); }
-        for (let y = 0; y <= MAP_HEIGHT; y += 4) { ctx.moveTo(0, y * PIXEL_SIZE); ctx.lineTo(MAP_WIDTH * PIXEL_SIZE, y * PIXEL_SIZE); }
-        ctx.stroke();
-    }
-
-    // Рендеринг нанесених гравцями пікселів
-    for (let key in window.mapData) {
-        let coords = key.split('_');
-        let x = parseInt(coords[0]), y = parseInt(coords[1]);
-        let code = window.mapData[key];
-        ctx.fillStyle = palette[code] ? palette[code].hex : "#e5e5e5";
-        ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
-    }
-    ctx.restore();
-}
-
-function screenToGrid(clientX, clientY) {
-    if (!canvas) return {x: 0, y: 0};
-    const rect = canvas.getBoundingClientRect();
-    return { 
-        x: Math.floor((clientX - rect.left - camera.x) / (PIXEL_SIZE * zoom)), 
-        y: Math.floor((clientY - rect.top - camera.y) / (PIXEL_SIZE * zoom)) 
-    };
 }
 
 if (canvas) {
@@ -344,8 +298,6 @@ if (canvas) {
         document.getElementById('hudZoom').innerText = Math.round(zoom * 100) + "%"; 
         redrawCanvas();
     });
-    
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
 window.addEventListener('mouseup', () => { isDragging = false; isMouseDown = false; });
@@ -376,6 +328,11 @@ window.addEventListener('keydown', (e) => {
         if (continuousDrawMode) { statusEl.innerText = "Пензель (Затискання)"; statusEl.className = "status-on"; }
         else { statusEl.innerText = "Крапка (Кліки)"; statusEl.className = "status-off"; }
     }
+});
+
+document.getElementById('soundFormulaInput').addEventListener('input', (e) => {
+    soundFormula = e.target.value;
+    drawFormulaGraph();
 });
 
 document.getElementById('resetMapBtn').addEventListener('click', () => {
