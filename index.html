@@ -2,103 +2,70 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>Pix Universe - UI Panel</title>
+    <title>Pix Universe Final</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #0b0e14; color: white; font-family: sans-serif; }
-        #viewport { width: 100vw; height: 100vh; position: relative; cursor: crosshair; }
-        #pixelCanvas { transform-origin: 0 0; image-rendering: pixelated; position: absolute; }
-        
-        /* Панель керування */
-        #ui-panel {
-            position: absolute; top: 10px; right: 10px; width: 200px;
-            background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px;
-            border: 1px solid #444; z-index: 100;
-        }
-        .control-group { margin-bottom: 15px; }
-        label { display: block; font-size: 12px; margin-bottom: 5px; }
+        body { margin: 0; background: #0b0e14; color: white; font-family: sans-serif; overflow: hidden; }
+        canvas { image-rendering: pixelated; position: absolute; transform-origin: 0 0; }
+        #ui { position: fixed; top: 10px; right: 10px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; z-index: 10; }
     </style>
 </head>
 <body>
 
-<div id="viewport">
-    <canvas id="pixelCanvas" width="2048" height="2048"></canvas>
+<div id="ui">
+    <label>Колір:</label>
+    <select id="colorCode"><option value="aaa">Білий (aaa)</option><option value="zaa">Вода (zaa)</option><option value="rhh">Червоний (rhh)</option></select><br>
+    <label>Розмір пензля:</label>
+    <input type="range" id="brushSize" min="1" max="5" value="1">
 </div>
 
-<div id="ui-panel">
-    <div class="control-group">
-        <label>Колір (код):</label>
-        <select id="colorSelect">
-            <option value="aaa">Білий (aaa)</option>
-            <option value="zaa">Вода (zaa)</option>
-            <option value="rhh">Червоний (rhh)</option>
-        </select>
-    </div>
-    <div class="control-group">
-        <label>Розмір пікселя: <span id="brushSizeVal">1</span></label>
-        <input type="range" id="brushSize" min="1" max="5" value="1">
-    </div>
-    <div class="control-group">
-        <label>Гучність звуку:</label>
-        <input type="range" id="volume" min="0" max="100" value="50">
-    </div>
-</div>
+<canvas id="pixelCanvas" width="2048" height="2048"></canvas>
 
 <script>
     const firebaseConfig = { databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+    
     const canvas = document.getElementById("pixelCanvas");
     const ctx = canvas.getContext("2d");
-    
-    let zoom = 1.0, posX = 0, posY = 0;
     const palette = { "aaa": "#ffffff", "zaa": "#afe7f3", "rhh": "#a65d5d" };
     
-    // Елементи UI
-    const colorSelect = document.getElementById("colorSelect");
-    const brushSizeInput = document.getElementById("brushSize");
-    const brushSizeVal = document.getElementById("brushSizeVal");
-
-    brushSizeInput.oninput = (e) => brushSizeVal.innerText = e.target.value;
-
-    // Малювання
-    function paint(x, y) {
-        const size = parseInt(brushSizeInput.value);
-        const code = colorSelect.value;
-        
-        for(let i = 0; i < size; i++) {
-            for(let j = 0; j < size; j++) {
-                db.ref(`multiplayer_map/${y+i}/${x+j}`).set(code);
-            }
-        }
+    // Звук
+    const audioCtx = new AudioContext();
+    function playSound(code) {
+        const osc = audioCtx.createOscillator();
+        // Формула: беремо кодове значення кольору
+        const freq = (code.charCodeAt(0) + code.charCodeAt(1)) * 5;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        osc.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.1);
     }
 
-    // Слухач Firebase
-    db.ref('multiplayer_map').on('child_changed', (snap) => {
-        const y = snap.key;
-        for(let x in snap.val()) {
-            ctx.fillStyle = palette[snap.val()[x]] || "#000";
-            ctx.fillRect(x, y, 1, 1);
-        }
-    });
-
-    // Кліки
-    window.addEventListener("mousedown", (e) => {
-        if(e.target.tagName === 'CANVAS') {
-            const x = Math.floor((e.clientX - posX) / zoom);
-            const y = Math.floor((e.clientY - posY) / zoom);
-            paint(x, y);
-        }
-    });
-
-    // Початковий рендер
-    db.ref('multiplayer_map').once('value', (snap) => {
-        const data = snap.val() || {};
+    // Рендер бази (Твоя структура y/x)
+    db.ref('multiplayer_map').on('value', (snap) => {
+        const data = snap.val();
+        if(!data) return;
         for(let y in data) {
             for(let x in data[y]) {
-                ctx.fillStyle = palette[data[y][x]];
+                ctx.fillStyle = palette[data[y][x]] || "#000";
                 ctx.fillRect(x, y, 1, 1);
+            }
+        }
+    });
+
+    // Малювання
+    canvas.addEventListener("mousedown", (e) => {
+        const x = Math.floor(e.clientX);
+        const y = Math.floor(e.clientY);
+        const code = document.getElementById("colorCode").value;
+        const size = document.getElementById("brushSize").value;
+        
+        playSound(code);
+        
+        for(let i=0; i<size; i++) {
+            for(let j=0; j<size; j++) {
+                db.ref(`multiplayer_map/${y+i}/${x+j}`).set(code);
             }
         }
     });
