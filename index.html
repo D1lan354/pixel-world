@@ -2,105 +2,106 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>Pix Universe v7.0</title>
+    <title>Pix Universe - Final Edition</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #0b0e14; font-family: sans-serif; color: white; }
-        #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; cursor: grab; }
-        #pixelCanvas { transform-origin: 0 0; image-rendering: pixelated; position: absolute; }
+        body { margin: 0; overflow: hidden; background: #0b0e14; color: white; font-family: sans-serif; }
+        #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; cursor: crosshair; }
+        #pixelCanvas { transform-origin: 0 0; image-rendering: pixelated; position: absolute; left:0; top:0; }
+        #ui { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 8px; pointer-events: none; }
     </style>
 </head>
 <body>
 
 <div id="viewport">
     <canvas id="pixelCanvas" width="2048" height="2048"></canvas>
+    <div id="ui">
+        <div id="zoomText">Масштаб: 100%</div>
+        <div id="coordText">X: 0 | Y: 0</div>
+        <small>Shift = Малювання | Пробіл = Рух</small>
+    </div>
 </div>
 
 <script>
+    // 1. Ініціалізація
     const firebaseConfig = { databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     
     const canvas = document.getElementById("pixelCanvas");
     const ctx = canvas.getContext("2d");
-    let zoom = 1.0, posX = 0, posY = 0;
-    let isDrawingMode = false; // true = малювати, false = рухати
-    let isMouseDown = false;
-
-    const palette = { "aaa": [255, 255, 255], "zaa": [175, 231, 243], "rhh": [166, 93, 93] };
-
-    // --- ЗВУКОВА СИСТЕМА ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    function playSound(colorCode) {
+    
+    let zoom = 1.0, posX = 0, posY = 0;
+    let isDragging = false, startX, startY;
+    const palette = { "aaa": "#ffffff", "zaa": "#afe7f3", "rhh": "#a65d5d" };
+
+    // 2. Звук (формула: частота залежить від кольору)
+    function playSound(code) {
         const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        // Формула тону: перетворюємо колір у частоту
-        const freq = colorCode.length * 100 + 200; 
-        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.1);
+        osc.frequency.setValueAtTime(code === "aaa" ? 440 : 220, audioCtx.currentTime);
+        osc.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.1);
     }
 
-    // --- ЛОГІКА ПОШУКУ НАЙБЛИЖЧОГО КОЛЬОРУ ---
-    function getNearestColor(r, g, b) {
-        let closest = "aaa";
-        let minDiff = Infinity;
-        for (let code in palette) {
-            let [pr, pg, pb] = palette[code];
-            let diff = Math.sqrt((r-pr)**2 + (g-pg)**2 + (b-pb)**2);
-            if (diff < minDiff) { minDiff = diff; closest = code; }
+    // 3. Рендер карти (виправлена логіка вкладених ключів)
+    function render(data) {
+        ctx.fillStyle = palette["zaa"];
+        ctx.fillRect(0, 0, 2048, 2048);
+        for (let y in data) {
+            for (let x in data[y]) {
+                ctx.fillStyle = palette[data[y][x]] || "#000";
+                ctx.fillRect(x, y, 1, 1);
+            }
         }
-        return closest;
     }
 
-    // --- МАЛЮВАННЯ ТА ДВИГУН ---
-    function draw() {
-        canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${zoom})`;
-    }
-
-    window.addEventListener("mousedown", (e) => {
-        isMouseDown = true;
-        if (isDrawingMode || e.shiftKey) {
-            // Малювання: Firebase запит
-            const x = Math.floor((e.clientX - posX) / zoom);
-            const y = Math.floor((e.clientY - posY) / zoom);
-            db.ref(`multiplayer_map/${y}/${x}`).set("rhh");
-            playSound("rhh");
-        }
-    });
-
-    window.addEventListener("mousemove", (e) => {
-        if (isMouseDown && !isDrawingMode && !e.shiftKey) {
-            posX += e.movementX;
-            posY += e.movementY;
-            draw();
-        }
-    });
-
-    window.addEventListener("mouseup", () => isMouseDown = false);
-
-    window.addEventListener("wheel", (e) => {
-        const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        zoom *= delta;
-        zoom = Math.max(0.5, Math.min(zoom, 20));
-        draw();
-    });
-
-    // Firebase слухач
+    // 4. Firebase слухач
+    db.ref('multiplayer_map').on('value', (snap) => render(snap.val() || {}));
     db.ref('multiplayer_map').on('child_changed', (snap) => {
         const y = snap.key;
-        const row = snap.val();
-        for(let x in row) {
-            ctx.fillStyle = `rgb(${palette[row[x]].join(',')})`;
+        for (let x in snap.val()) {
+            ctx.fillStyle = palette[snap.val()[x]];
             ctx.fillRect(x, y, 1, 1);
         }
     });
 
-    draw();
+    // 5. Керування: Малювання / Перетягування
+    window.addEventListener("mousedown", (e) => {
+        if (e.shiftKey) { // Малювання
+            const x = Math.floor((e.clientX - posX) / zoom);
+            const y = Math.floor((e.clientY - posY) / zoom);
+            db.ref(`multiplayer_map/${y}/${x}`).set("rhh");
+            playSound("rhh");
+        } else { // Рух
+            isDragging = true;
+            startX = e.clientX - posX;
+            startY = e.clientY - posY;
+        }
+    });
+
+    window.addEventListener("mousemove", (e) => {
+        if (isDragging) {
+            posX = e.clientX - startX;
+            posY = e.clientY - startY;
+            canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${zoom})`;
+        }
+        // Координати
+        const x = Math.floor((e.clientX - posX) / zoom);
+        const y = Math.floor((e.clientY - posY) / zoom);
+        document.getElementById("coordText").innerText = `X: ${x} | Y: ${y}`;
+    });
+
+    window.addEventListener("mouseup", () => isDragging = false);
+
+    window.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const factor = e.deltaY > 0 ? 0.9 : 1.1;
+        zoom = Math.max(0.5, Math.min(zoom * factor, 15));
+        canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${zoom})`;
+        document.getElementById("zoomText").innerText = `Масштаб: ${Math.round(zoom*100)}%`;
+    }, {passive: false});
 </script>
 </body>
 </html>
