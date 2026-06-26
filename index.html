@@ -1,30 +1,107 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Pix Universe - Повний Функціонал</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        body { margin: 0; background: #0b0e14; color: white; font-family: sans-serif; overflow: hidden; }
+        canvas { image-rendering: pixelated; position: absolute; transform-origin: 0 0; cursor: crosshair; }
+        #ui { position: fixed; top: 10px; right: 10px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; z-index: 100; border: 1px solid #444; }
+        .row { margin: 10px 0; }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <h3>Налаштування</h3>
+    <div class="row">
+        Колір: <select id="colorSelect">
+            <option value="aaa">Білий</option>
+            <option value="zaa">Вода</option>
+            <option value="rhh">Червоний</option>
+        </select>
+    </div>
+    <div class="row">
+        Розмір пензля: <input type="range" id="brushSize" min="1" max="5" value="1">
+    </div>
+    <div class="row">
+        Гучність: <input type="range" id="volume" min="0" max="100" value="50">
+    </div>
+    <small>Shift = Малювати | Пробіл = Рухати</small>
+</div>
+
+<canvas id="pixelCanvas" width="2048" height="2048"></canvas>
+
 <script>
-    // 1. Ініціалізація
     const firebaseConfig = { databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+    
+    const canvas = document.getElementById("pixelCanvas");
+    const ctx = canvas.getContext("2d");
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    let zoom = 1.0, posX = 0, posY = 0;
+    const palette = { "aaa": "#ffffff", "zaa": "#afe7f3", "rhh": "#a65d5d" };
 
-    // 2. ФУНКЦІЯ ПЛЄЄРА (не стирає, а ДОДАЄ)
-    function savePixel(x, y, color) {
-        // Ми пишемо в конкретну точку, не чіпаючи іншу базу
-        db.ref('multiplayer_map/' + y + '/' + x).set(color);
+    // --- ЗВУК ---
+    function playSound(code) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        const vol = document.getElementById("volume").value / 100;
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        // Формула тону: код кольору -> частота
+        const freq = (code.length * 200) + 100;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.1);
     }
 
-    // 3. ФУНКЦІЯ ЗАВАНТАЖЕННЯ (бере тільки те, що є)
-    function loadMap() {
-        db.ref('multiplayer_map').on('value', (snap) => {
-            const data = snap.val();
-            if (data) {
-                renderFullMap(data); // Твоя функція малювання
+    // --- МАЛЮВАННЯ (БЕЗ ВИДАЛЕНЬ) ---
+    function paint(x, y) {
+        const size = parseInt(document.getElementById("brushSize").value);
+        const code = document.getElementById("colorSelect").value;
+        
+        for(let i=0; i<size; i++) {
+            for(let j=0; j<size; j++) {
+                // Тільки ADD/UPDATE, ніякого видалення
+                db.ref(`multiplayer_map/${y+i}/${x+j}`).set(code);
             }
-        });
+        }
+        playSound(code);
     }
 
-    // 4. Твій генератор (ДОДАЄ масив)
-    async function uploadToFirebase(fullMapData) {
-        // Ми НЕ робимо .set(null), ми просто оновлюємо гілку
-        // Firebase сам об'єднає нові дані зі старими
-        await db.ref('multiplayer_map').update(fullMapData);
-        alert("Дані додано до бази без видалення!");
-    }
+    // --- РЕНДЕР (БЕЗ ВИДАЛЕНЬ) ---
+    db.ref('multiplayer_map').on('value', (snap) => {
+        const data = snap.val();
+        if(!data) return;
+        ctx.fillStyle = "#afe7f3"; // Фон води
+        ctx.fillRect(0, 0, 2048, 2048);
+        for(let y in data) {
+            for(let x in data[y]) {
+                ctx.fillStyle = palette[data[y][x]] || "#000";
+                ctx.fillRect(parseInt(x), parseInt(y), 1, 1);
+            }
+        }
+    });
+
+    // --- КЕРУВАННЯ ---
+    window.addEventListener("mousedown", (e) => {
+        if(e.shiftKey) {
+            const x = Math.floor((e.clientX - posX) / zoom);
+            const y = Math.floor((e.clientY - posY) / zoom);
+            paint(x, y);
+        }
+    });
+
+    window.addEventListener("wheel", (e) => {
+        zoom = Math.max(0.5, Math.min(zoom * (e.deltaY > 0 ? 0.9 : 1.1), 10));
+        canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${zoom})`;
+    });
 </script>
+</body>
+</html>
