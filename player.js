@@ -1,362 +1,254 @@
-const canvas = document.getElementById('mapCanvas');
+// === КОНФІГУРАЦІЯ БАЗИ ДАНИХ FIREBASE ===
+const firebaseConfig = {
+    databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com"
+};
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+
+// === ГЛОБАЛЬНІ ЗМІННІ СТАНУ ГРИ ===
+const canvas = document.getElementById('pixelCanvas');
 const ctx = canvas.getContext('2d');
-const container = document.getElementById('canvasContainer');
-const vCanvas = document.getElementById('visualizerCanvas'); const vCtx = vCanvas ? vCanvas.getContext('2d') : null;
-const fCanvas = document.getElementById('formulaCanvas'); const fCtx = fCanvas ? fCanvas.getContext('2d') : null;
+const viewport = document.getElementById('viewport');
 
-function resizeCanvas() {
-    if (canvas && container) {
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
-        redrawCanvas();
+let currentCooldown = 0; // Максимум 300
+let currentColorCode = "aaa"; // "aaa" = білий, "zaa" = світло-блакитна вода
+let zoomLevel = 1.0;
+const MAP_SIZE = 2048;
+
+// Словник перекладу коротких кодів у реальні кольори для Canvas
+const colorPaletteMap = {
+    "aaa": "#ffffff", // Біла суша
+    "zaa": "#afe7f3", // Світло-блакитна вода континентів
+    "rhh": "#a65d5d"  // Світло-коричневий / червонуватий колір гравців
+};
+
+// Протилежний пошук (з hex у твій короткий 3-символьний код)
+function getCodeFromHex(hex) {
+    for (let code in colorPaletteMap) {
+        if (colorPaletteMap[code] === hex.toLowerCase()) return code;
     }
-}
-window.addEventListener('resize', resizeCanvas);
-
-const MAP_WIDTH = 2048; const MAP_HEIGHT = 2048; const PIXEL_SIZE = 16; 
-
-let zoom = 1.0, maxZoom = 15.0, minZoom = 0.01;
-let camera = { x: 50, y: 50 };
-let showGrid = true, soundVolume = 0.5, continuousDrawMode = false, isDragging = false, isMouseDown = false, startPan = { x: 0, y: 0 };
-let audioCtx = null, analyserNode = null;
-let clickCount = 0;
-
-let cooldownTime = parseFloat(localStorage.getItem('pixel_cooldown')) || 0.0;
-const MAX_COOLDOWN = 300.0;
-
-let soundFormula = "Math.sin(t * 0.2) * Math.exp(-t * 0.04)";
-
-// Генерація палітри
-const alphabet = "abcdefghijklmnopqrstuvwxyz"; const palette = {}; 
-for (let r = 0; r < 26; r++) {
-    for (let g = 0; g < 26; g++) {
-        for (let b = 0; b < 26; b++) {
-            let rVal = Math.round(r * (255 / 25)), gVal = Math.round(g * (255 / 25)), bVal = Math.round(b * (255 / 25));
-            let code = alphabet[r] + alphabet[g] + alphabet[b];
-            palette[code] = { r: rVal, g: gVal, b: bVal, hex: `#${rVal.toString(16).padStart(2,'0')}${gVal.toString(16).padStart(2,'0')}${bVal.toString(16).padStart(2,'0')}` };
-        }
-    }
-}
-let selectedGameColor = "#ff0000", selectedCode = "aaa";
-
-if (!window.mapData) window.mapData = {};
-
-// ФУНКЦІЯ З ПЕРЕВІРКОЮ НА ДУБЛІКАТ
-function sendPixel(x, y, code) {
-    // Якщо колір у цій точці вже такий самий - ігноруємо
-    if (window.mapData[x + '_' + y] === code) {
-        return false; 
-    }
-
-    window.mapData[x + '_' + y] = code;
-    try {
-        if (typeof firebase !== 'undefined' && firebase.database) {
-            firebase.database().ref('multiplayer_map/' + x + '_' + y).set(code);
-        }
-    } catch(e) {}
-    return true;
+    return "rhh"; // За замовчуванням даємо кастомний колір, якщо в палітрі немає
 }
 
-function redrawCanvas() {
-    if (!ctx || !canvas) return;
-    
-    // Темний фон за межами карти
-    ctx.fillStyle = "#121212"; 
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    ctx.save();
-    ctx.translate(camera.x, camera.y); ctx.scale(zoom, zoom);
-    
-    // СВІТЛО-СІРА КАРТА (А НЕ ЧОРНА)
-    ctx.fillStyle = "#ededed";
-    ctx.fillRect(0, 0, MAP_WIDTH * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE);
-    
-    // Червона рамка
-    ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 2 / zoom;
-    ctx.strokeRect(0, 0, MAP_WIDTH * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE);
-
-    if (showGrid && zoom > 0.15) { 
-        ctx.strokeStyle = 'rgba(0,0,0,0.07)'; ctx.lineWidth = 0.5 / zoom; ctx.beginPath();
-        for (let x = 0; x <= MAP_WIDTH; x += 4) { ctx.moveTo(x * PIXEL_SIZE, 0); ctx.lineTo(x * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE); }
-        for (let y = 0; y <= MAP_HEIGHT; y += 4) { ctx.moveTo(0, y * PIXEL_SIZE); ctx.lineTo(MAP_WIDTH * PIXEL_SIZE, y * PIXEL_SIZE); }
-        ctx.stroke();
-    }
-
-    // Малюємо пікселі
-    for (let key in window.mapData) {
-        let coords = key.split('_');
-        let x = parseInt(coords[0]), y = parseInt(coords[1]);
-        let code = window.mapData[key];
-        ctx.fillStyle = palette[code] ? palette[code].hex : "#ededed";
-        ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
-    }
-    ctx.restore();
-}
-
-// ЛОГІКА КУЛДАУНУ (0.5с ЗА КОЖЕН НОВИЙ ПІКСЕЛЬ)
-function executeBrushPainting(baseX, baseY) {
-    if (cooldownTime >= MAX_COOLDOWN) return;
-    
-    const brushSelector = document.getElementById('brushSizeSelector');
-    const size = brushSelector ? parseInt(brushSelector.value) : 1;
-    let offset = Math.floor(size / 2);
-    
-    let actualPaintedCount = 0;
-
-    for (let dx = -offset; dx <= offset; dx++) {
-        for (let dy = -offset; dy <= offset; dy++) {
-            let tx = baseX + dx;
-            let ty = baseY + dy;
-            if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
-                // sendPixel поверне true ТІЛЬКИ якщо колір змінився
-                if (sendPixel(tx, ty, selectedCode)) {
-                    actualPaintedCount++;
-                }
-            }
-        }
-    }
-
-    if (actualPaintedCount > 0) {
-        playSoundFX();
-        clickCount++;
-        const clicksEl = document.getElementById('hudClicks');
-        if (clicksEl) clicksEl.innerText = clickCount;
-        
-        // Додаємо рівно 0.5с за кожен реально зафарбований піксель
-        cooldownTime = Math.min(MAX_COOLDOWN, cooldownTime + (actualPaintedCount * 0.5));
-        updateCooldownUI();
-        redrawCanvas();
-    }
-}
-
-// Завантаження з Firebase
-try {
-    if (typeof firebase !== 'undefined' && firebase.database) {
-        firebase.database().ref('multiplayer_map').on('value', (snapshot) => {
-            window.mapData = snapshot.val() || {};
-            redrawCanvas();
-        });
-    }
-} catch(e) {}
-
-// --- ЗВУК ТА ІНШІ ФУНКЦІЇ ---
-function initAudio() {
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (vCanvas && audioCtx) {
-            analyserNode = audioCtx.createAnalyser();
-            analyserNode.fftSize = 256;
-            analyserNode.connect(audioCtx.destination);
-            drawLiveVisualizer();
-        }
-    }
-}
-
-function playSoundFX() {
-    initAudio(); 
-    if (soundVolume === 0 || !audioCtx) return;
-    try {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        const duration = 0.2;
-        const sampleRate = audioCtx.sampleRate;
-        const bufferSize = sampleRate * duration;
-        const buffer = audioCtx.createBuffer(1, bufferSize, sampleRate);
-        const data = buffer.getChannelData(0);
-        let waveFunction = new Function('t', `try { return ${soundFormula}; } catch(e) { return 0; }`);
-        for (let i = 0; i < bufferSize; i++) {
-            let t = (i / sampleRate) * 1000; 
-            let sampleValue = waveFunction(t);
-            if (isNaN(sampleValue)) sampleValue = 0;
-            data[i] = Math.max(-1, Math.min(1, sampleValue * soundVolume * 0.5));
-        }
-        const bufferSource = audioCtx.createBufferSource();
-        bufferSource.buffer = buffer;
-        if (analyserNode) bufferSource.connect(analyserNode);
-        else bufferSource.connect(audioCtx.destination);
-        bufferSource.start();
-    } catch(e) {}
-}
-
-function drawLiveVisualizer() {
-    if (!vCanvas || !vCtx || !analyserNode) return;
-    requestAnimationFrame(drawLiveVisualizer);
-    const bufferLength = analyserNode.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-    analyserNode.getByteTimeDomainData(dataArray);
-    vCtx.fillStyle = '#111'; vCtx.fillRect(0, 0, vCanvas.width, vCanvas.height);
-    vCtx.lineWidth = 2; vCtx.strokeStyle = '#00ff00'; vCtx.beginPath();
-    const sliceWidth = vCanvas.width / bufferLength; let x = 0;
-    for (let i = 0; i < bufferLength; i++) {
-        const v = dataArray[i] / 128.0; const y = (v * vCanvas.height) / 2;
-        if (i === 0) vCtx.moveTo(x, y); else vCtx.lineTo(x, y);
-        x += sliceWidth;
-    }
-    vCtx.lineTo(vCanvas.width, vCanvas.height / 2); vCtx.stroke();
-}
-
-function drawFormulaGraph() {
-    if (!fCanvas || !fCtx) return;
-    fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height);
-    fCtx.strokeStyle = '#222'; fCtx.lineWidth = 1; fCtx.beginPath();
-    fCtx.moveTo(0, fCanvas.height / 2); fCtx.lineTo(fCanvas.width, fCanvas.height / 2); fCtx.stroke();
-    fCtx.strokeStyle = '#0088ff'; fCtx.lineWidth = 1.5; fCtx.beginPath();
-    let sampleRate = 100;
-    let waveFunction = new Function('t', `try { return ${soundFormula}; } catch(e) { return 0; }`);
-    for (let t = 0; t < sampleRate; t++) {
-        let val = waveFunction(t);
-        if (isNaN(val)) val = 0;
-        let x = (t / sampleRate) * fCanvas.width;
-        let y = fCanvas.height / 2 - (val * (fCanvas.height * 0.4));
-        if (t === 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y);
-    }
-    fCtx.stroke();
-}
-
-function findNearestColor(hexColor) {
-    let r = parseInt(hexColor.slice(1, 3), 16), g = parseInt(hexColor.slice(3, 5), 16), b = parseInt(hexColor.slice(5, 7), 16);
-    let minDistance = Infinity, nearestCode = "aaa", nearestHex = "#ff0000";
-    for (let code in palette) {
-        let p = palette[code]; let dist = Math.sqrt((r - p.r)**2 + (g - p.g)**2 + (b - p.b)**2);
-        if (dist < minDistance) { minDistance = dist; nearestCode = code; nearestHex = p.hex; }
-    }
-    return { code: nearestCode, hex: nearestHex };
-}
-
-function screenToGrid(clientX, clientY) {
-    if (!canvas) return {x: 0, y: 0};
-    const rect = canvas.getBoundingClientRect();
-    return { 
-        x: Math.floor((clientX - rect.left - camera.x) / (PIXEL_SIZE * zoom)), 
-        y: Math.floor((clientY - rect.top - camera.y) / (PIXEL_SIZE * zoom)) 
-    };
-}
-
-const picker = document.getElementById('colorPicker');
-if (picker) {
-    picker.addEventListener('input', (e) => {
-        let nearest = findNearestColor(e.target.value);
-        selectedGameColor = nearest.hex; selectedCode = nearest.code;
-        document.getElementById('matchedColorBox').style.backgroundColor = nearest.hex;
-        document.getElementById('colorCode').innerText = nearest.code;
-    });
-}
-
-if (canvas) {
-    canvas.addEventListener('mousedown', (e) => {
-        initAudio();
-        if (e.button === 1 || e.button === 2 || e.shiftKey) { 
-            isDragging = true; 
-            startPan.x = e.clientX - camera.x; 
-            startPan.y = e.clientY - camera.y; 
-            e.preventDefault(); 
-            return; 
-        }
-        if (e.button === 0) {
-            isMouseDown = true; 
-            const coords = screenToGrid(e.clientX, e.clientY);
-            if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
-                if (e.ctrlKey) { 
-                    e.preventDefault(); 
-                    let key = coords.x + '_' + coords.y;
-                    let clickedCode = window.mapData[key] || "zzz"; 
-                    if(palette[clickedCode] && picker) {
-                        picker.value = palette[clickedCode].hex; 
-                        picker.dispatchEvent(new Event('input')); 
-                    }
-                    return; 
-                }
-                executeBrushPainting(coords.x, coords.y);
-            }
-        }
-    });
-
-    canvas.addEventListener('mousemove', (e) => {
-        if (isDragging) { 
-            camera.x = e.clientX - startPan.x; 
-            camera.y = e.clientY - startPan.y; 
-            redrawCanvas(); 
-            return; 
-        }
-        const coords = screenToGrid(e.clientX, e.clientY);
-        if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
-            let hX = document.getElementById('hudX');
-            let hY = document.getElementById('hudY');
-            if(hX) hX.innerText = coords.x; 
-            if(hY) hY.innerText = coords.y;
-            
-            if (isMouseDown && continuousDrawMode) {
-                executeBrushPainting(coords.x, coords.y);
-            }
-        }
-    });
-
-    canvas.addEventListener('wheel', (e) => {
-        e.preventDefault(); const rect = canvas.getBoundingClientRect();
-        let mX = e.clientX - rect.left, mY = e.clientY - rect.top;
-        let gridX = (mX - camera.x) / zoom, gridY = (mY - camera.y) / zoom;
-        zoom = (e.deltaY < 0) ? Math.min(maxZoom, zoom * 1.15) : Math.max(minZoom, zoom / 1.15);
-        camera.x = mX - gridX * zoom; camera.y = mY - gridY * zoom;
-        let hZ = document.getElementById('hudZoom');
-        if(hZ) hZ.innerText = Math.round(zoom * 100) + "%"; 
-        redrawCanvas();
-    });
-}
-
-window.addEventListener('mouseup', () => { isDragging = false; isMouseDown = false; });
-
-function updateCooldownUI() {
-    const timerText = document.getElementById('cooldownTimer');
-    const bar = document.getElementById('cooldownBar');
-    if(!timerText || !bar) return;
-    timerText.innerText = cooldownTime.toFixed(1) + "с / 300с";
-    bar.style.width = Math.min(100, (cooldownTime / MAX_COOLDOWN) * 100) + "%";
-}
-
-setInterval(() => {
-    if (cooldownTime > 0) {
-        cooldownTime = Math.max(0, cooldownTime - 1.0);
-        localStorage.setItem('pixel_cooldown', cooldownTime);
-        updateCooldownUI();
-    }
-}, 1000);
-
-let gridCheckbox = document.getElementById('gridCheckbox');
-if(gridCheckbox) { gridCheckbox.addEventListener('change', (e) => { showGrid = e.target.checked; redrawCanvas(); }); }
-
-let volSlider = document.getElementById('volumeSlider');
-if(volSlider) { volSlider.addEventListener('input', (e) => { soundVolume = e.target.value / 100; }); }
-
-window.addEventListener('keydown', (e) => {
-    if (e.key === 'Shift') {
-        continuousDrawMode = !continuousDrawMode;
-        const statusEl = document.getElementById('brushStatus');
-        if(statusEl) {
-            if (continuousDrawMode) { statusEl.innerText = "Пензель (Затискання)"; statusEl.className = "status-on"; }
-            else { statusEl.innerText = "Крапка (Кліки)"; statusEl.className = "status-off"; }
-        }
-    }
+// === ІНІЦІАЛІЗАЦІЯ ТА СЛУХАЧІ ПОДІЙ ===
+window.addEventListener('DOMContentLoaded', () => {
+    initApp();
+    setupZoomAndPan();
+    startCooldownSystem();
 });
 
-let formulaInputEl = document.getElementById('soundFormulaInput');
-if(formulaInputEl) {
-    formulaInputEl.addEventListener('input', (e) => {
-        soundFormula = e.target.value;
-        drawFormulaGraph();
+function initApp() {
+    // 1. Завантажуємо первинну мапу з бази даних
+    database.ref().once('value').then((snapshot) => {
+        const fullData = snapshot.val();
+        if (fullData) {
+            renderFullMap(fullData);
+        }
+        // Вмикаємо онлайн-оновлення в реальному часі для змін
+        listenToLiveUpdates();
     });
+
+    // 2. Логіка вибору кольору через квадрат
+    const activeColorBox = document.getElementById('activeColorBox');
+    const colorPicker = document.getElementById('colorPicker');
+    
+    activeColorBox.addEventListener('click', () => colorPicker.click());
+    colorPicker.addEventListener('input', (e) => {
+        const hex = e.target.value;
+        activeColorBox.style.backgroundColor = hex;
+        // Перетворюємо у внутрішній формат (3 символи)
+        currentColorCode = getCodeFromHex(hex);
+        document.getElementById('colorCodeText').innerText = currentColorCode;
+    });
+    
+    // 3. Відслідковування руху миші для оновлення координат в меню
+    canvas.addEventListener('mousemove', updateMouseCoordinates);
+    
+    // 4. Головна подія: КЛІК МИШКОЮ (Малювання пікселями)
+    canvas.addEventListener('mousedown', handleCanvasClick);
 }
 
-let resetBtn = document.getElementById('resetMapBtn');
-if(resetBtn) {
-    resetBtn.addEventListener('click', () => {
-        if(confirm("Очистити всю карту?")) {
-            try { if (typeof firebase !== 'undefined' && firebase.database) firebase.database().ref('multiplayer_map').remove(); } catch(e) {}
-            window.mapData = {}; redrawCanvas();
+// === РЕНДЕР КАРТИ ТА ОНЛАЙН СИНХРОНІЗАЦІЯ ===
+function renderFullMap(data) {
+    const imgData = ctx.createImageData(MAP_SIZE, MAP_SIZE);
+    
+    for (let y = 0; y < MAP_SIZE; y++) {
+        if (!data[y]) continue;
+        for (let x = 0; x < MAP_SIZE; x++) {
+            const code = data[y][x] || "zaa"; // Якщо пусто — малюється вода
+            const hex = colorPaletteMap[code] || "#afe7f3";
+            
+            // Парсимо HEX в RGB для швидкого заповнення масиву canvas
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            
+            const idx = (y * MAP_SIZE + x) * 4;
+            imgData.data[idx] = r;
+            imgData.data[idx+1] = g;
+            imgData.data[idx+2] = b;
+            imgData.data[idx+3] = 255;
+        }
+    }
+    ctx.putImageData(imgData, 0, 0);
+}
+
+function listenToLiveUpdates() {
+    // Слухаємо лише останні точкові зміни в базі, щоб не перевантажувати мережу
+    database.ref().on('child_changed', (snapshot) => {
+        const y = snapshot.key;
+        const rowData = snapshot.val();
+        for (let x in rowData) {
+            drawSinglePixelLocal(parseInt(x), parseInt(y), rowData[x]);
         }
     });
 }
 
-setTimeout(() => {
-    resizeCanvas();
-    drawFormulaGraph();
-    if (picker) picker.dispatchEvent(new Event('input'));
-}, 100);
+function drawSinglePixelLocal(x, y, code) {
+    ctx.fillStyle = colorPaletteMap[code] || "#afe7f3";
+    ctx.fillRect(x, y, 1, 1);
+}
+
+// === МАТЕМАТИКА КЛІКУ, ПЕНЗЛЯ ТА КУЛДАУНУ ===
+function handleCanvasClick(event) {
+    // Перевірка на Ctrl+Клік (Піпетка)
+    if (event.ctrlKey) {
+        executePipette(event);
+        return;
+    }
+
+    // 1. НАЙВАЖЛИВІШЕ: Перевірка перегріву перед виконанням коду
+    if (currentCooldown >= 300) {
+        console.warn("Кулдаун активований! Зачекайте охолодження.");
+        return; 
+    }
+
+    // Отримуємо координати кліку з урахуванням поточного рівня зуму
+    const rect = canvas.getBoundingClientRect();
+    const clickX = Math.floor((event.clientX - rect.left) / zoomLevel);
+    const clickY = Math.floor((event.clientY - rect.top) / zoomLevel);
+
+    // Зчитуємо поточний розмір пензля із селектора (1 чи 5)
+    const brushSize = parseInt(document.getElementById('brushSizeSelect').value) || 1;
+    const halfBrush = Math.floor(brushSize / 2);
+    
+    let totalPixelsPaintedInThisClick = 0;
+    let updatesBatch = {};
+
+    // 2. Цикл малювання по матриці навколо кліку
+    for (let dy = -halfBrush; dy <= halfBrush; dy++) {
+        for (let dx = -halfBrush; dx <= halfBrush; dx++) {
+            const tx = clickX + dx;
+            const ty = clickY + dy;
+
+            // Перевірка границь карти
+            if (tx >= 0 && tx < MAP_SIZE && ty >= 0 && ty < MAP_SIZE) {
+                // Малюємо локально для миттєвого відгуку у гравця
+                drawSinglePixelLocal(tx, ty, currentColorCode);
+                
+                // Швидка відправка у Firebase
+                database.ref(`${ty}/${tx}`).set(currentColorCode);
+                
+                totalPixelsPaintedInThisClick++;
+            }
+        }
+    }
+
+    // 3. Рахуємо кулдаун за кожен фактично пофарбований піксель
+    // Наприклад: 1 піксель = +2с кулдауну, клік 5x5 (25 пікселів) = +50с кулдауну.
+    currentCooldown += totalPixelsPaintedInThisClick * 2.0; 
+    if (currentCooldown > 300) currentCooldown = 300;
+
+    updateCooldownUI();
+}
+
+// Функція піпетки (Ctrl + Клік бере колір з карти)
+function executePipette(event) {
+    const rect = canvas.getBoundingClientRect();
+    const cx = Math.floor((event.clientX - rect.left) / zoomLevel);
+    const cy = Math.floor((event.clientY - rect.top) / zoomLevel);
+    
+    try {
+        const pixelData = ctx.getImageData(cx, cy, 1, 1).data;
+        const hex = "#" + ("0" + pixelData[0].toString(16)).slice(-2) +
+                          ("0" + pixelData[1].toString(16)).slice(-2) +
+                          ("0" + pixelData[2].toString(16)).slice(-2);
+        
+        document.getElementById('activeColorBox').style.backgroundColor = hex;
+        currentColorCode = getCodeFromHex(hex);
+        document.getElementById('colorCodeText').innerText = currentColorCode;
+    } catch(e) { console.error("Помилка піпетки:", e); }
+}
+
+// === СИСТЕМА ОХОЛОДЖЕННЯ ТА ІНТЕРФЕЙСУ ===
+function startCooldownSystem() {
+    // Кожні 100 мілісекунд стабільно зменшуємо кулдаун (охолодження процесу)
+    setInterval(() => {
+        if (currentCooldown > 0) {
+            currentCooldown -= 0.5; // Швидкість охолодження
+            if (currentCooldown < 0) currentCooldown = 0;
+            updateCooldownUI();
+        }
+    }, 100);
+}
+
+function updateCooldownUI() {
+    document.getElementById('cooldownTimerText').innerText = currentCooldown.toFixed(1) + "с";
+    const percentage = (currentCooldown / 300) * 100;
+    
+    const bar = document.getElementById('cooldownProgressBar');
+    bar.style.width = `${percentage}%`;
+
+    // Зміна кольору смужки при критичному перегріві
+    if (currentCooldown >= 250) {
+        bar.style.background = "linear-gradient(90deg, #ff3333, #ff6600)";
+    } else {
+        bar.style.background = "linear-gradient(90deg, #00ff88, #00ffcc)";
+    }
+}
+
+function updateMouseCoordinates(event) {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((event.clientX - rect.left) / zoomLevel);
+    const y = Math.floor((event.clientY - rect.top) / zoomLevel);
+    
+    if(x >= 0 && x < MAP_SIZE && y >= 0 && y < MAP_SIZE) {
+        document.getElementById('coordX').innerText = x;
+        document.getElementById('coordY').innerText = y;
+    }
+}
+
+// === КЕРУВАННЯ МАСШТАБОМ (ЗУМ КОЛІЩАТКОМ) ===
+function setupZoomAndPan() {
+    viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        
+        const zoomSpeed = 0.15;
+        if (e.deltaY < 0) {
+            zoomLevel += zoomSpeed;
+        } else {
+            zoomLevel -= zoomSpeed;
+        }
+        
+        // Ліміти масштабу: від 20% до 1200%
+        if (zoomLevel < 0.2) zoomLevel = 0.2;
+        if (zoomLevel > 12) zoomLevel = 12;
+
+        canvas.style.transform = `scale(${zoomLevel})`;
+        canvas.style.transformOrigin = "top left";
+        document.getElementById('zoomVal').innerText = Math.round(zoomLevel * 100) + "%";
+    }, { passive: false });
+}
+
+// Повне адмін-очищення онлайн-карти (скидання у воду)
+async function clearFullOnlineMap() {
+    if (!confirm("Ви дійсно хочете ПОВНІСТЮ ОЧИСТИТИ онлайн-карту та залити її водою?")) return;
+    
+    const rowData = {};
+    for(let x=0; x<MAP_SIZE; x++) rowData[x] = "zaa"; // Код води
+
+    for(let y=0; y<MAP_SIZE; y++) {
+        await database.ref(`${y}`).set(rowData);
+    }
+    alert("Карту успішно очищено!");
+}
