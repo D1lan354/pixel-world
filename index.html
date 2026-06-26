@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Пікс Мапа v6.0 (Мультиплеєр 2048 × 2048)</title>
+    <title>Пікс Мапа v6.0 — Світ</title>
+    
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     
@@ -12,17 +13,17 @@
         body {
             background-color: #121212;
             color: #e0e0e0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: sans-serif;
             display: flex;
             height: 100vh;
             overflow: hidden;
         }
         
-        /* Головна зона з Canvas */
+        /* Контейнер для карти (Він має ловити скрол!) */
         .main-container {
             flex: 1;
             position: relative;
-            overflow: auto;
+            overflow: hidden; /* Скролбари не мають з'являтися */
             background: #1a1a1a;
             display: flex;
             align-items: center;
@@ -32,65 +33,34 @@
         canvas {
             box-shadow: 0 0 20px rgba(0,0,0,0.8);
             image-rendering: pixelated;
-            background-color: #afe7f3; /* Базовий колір світло-блакитної води */
+            background-color: #afe7f3; /* Колір води */
             cursor: crosshair;
+            transform-origin: 0 0; /* Важливо для зуму */
+            transition: transform 0.05s ease-out;
         }
 
-        /* Верхня плашка інфо */
-        .top-bar {
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(20, 20, 20, 0.85);
-            padding: 8px 20px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: bold;
-            z-index: 10;
-            pointer-events: none;
-            border: 1px solid #333;
-            text-align: center;
-        }
-        .top-bar span { color: #00ffcc; }
-
-        /* Бічна панель меню (Праворуч) */
+        /* Бічна панель меню */
         .sidebar {
-            width: 320px;
+            width: 300px;
             background: #181818;
             border-left: 1px solid #282828;
             padding: 20px;
             display: flex;
             flex-direction: column;
-            gap: 20px;
-            overflow-y: auto;
-            z-index: 11;
+            gap: 15px;
+            z-index: 10;
         }
 
-        h2 { font-size: 18px; color: #00ff88; text-transform: uppercase; letter-spacing: 1px; }
+        h2 { font-size: 18px; color: #00ff88; text-transform: uppercase; }
         .section { background: #202020; padding: 12px; border-radius: 8px; border: 1px solid #2c2c2c; }
-        .label-text { font-size: 12px; color: #aaa; margin-bottom: 6px; display: block; text-transform: uppercase; }
-
-        /* Палітра кольорів */
-        .palette-preview {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-top: 5px;
-        }
-        .color-box {
-            width: 45px;
-            height: 45px;
-            border-radius: 6px;
-            border: 2px solid #fff;
-        }
+        .label-text { font-size: 11px; color: #aaa; text-transform: uppercase; display: block; margin-bottom: 5px; }
 
         /* Кулдаун прогрес-бар */
         .cooldown-container {
             width: 100%;
             background: #333;
-            height: 12px;
-            border-radius: 6px;
+            height: 10px;
+            border-radius: 5px;
             overflow: hidden;
             margin-top: 5px;
         }
@@ -98,11 +68,9 @@
             width: 0%;
             height: 100%;
             background: linear-gradient(90deg, #00ff88, #00ffcc);
-            transition: width 0.1s linear;
         }
 
-        /* Елементи форми */
-        select, button {
+        select {
             width: 100%;
             padding: 10px;
             background: #2a2a2a;
@@ -111,70 +79,219 @@
             border-radius: 6px;
             font-weight: bold;
             cursor: pointer;
-            outline: none;
         }
-        select:focus { border-color: #00ff88; }
-        
-        button.danger-btn {
-            background: #c82333;
-            border-color: #bd2130;
-            margin-top: auto;
-        }
-        button.danger-btn:hover { background: #bd2130; }
-
-        /* Дані гравця */
-        .player-info { font-size: 13px; line-height: 1.6; }
-        .player-info strong { color: #ffcc00; }
     </style>
 </head>
 <body>
 
-    <div class="top-bar">
-        Пікс Мапа v6.0 | Світ: <span>Спільний онлайн</span> | Shift — режим пензля | Ctrl+Клік — піпетка | Коліщатко — Зум
-    </div>
-
     <div class="main-container" id="viewport">
-        <canvas id="pixelCanvas" width="2048" height="2048"></canvas>
+        <canvas id="pixelCanvas"></canvas>
     </div>
 
     <div class="sidebar">
         <h2>Нікс Мапа v6.0</h2>
         
-        <div class="section player-info">
-            <div>Гравець: <strong id="playerName">Dylan</strong></div>
-            <div>Координати: X: <span id="coordX">0</span> | Y: <span id="coordY">0</span></div>
-            <div>Масштаб зуму: <span id="zoomVal">100%</span></div>
-        </div>
-
         <div class="section">
-            <span class="label-text">Палітра</span>
-            <div class="palette-preview">
-                <input type="color" id="colorPicker" value="#ffffff" style="display:none;">
-                <div class="color-box" id="activeColorBox" style="background-color: #ffffff; cursor:pointer;" title="Натисніть для зміни кольору"></div>
-                <div>Код кольору: <span id="colorCodeText" style="font-family:monospace; color:#00ffcc;">aaa</span></div>
-            </div>
+            <div>Координати: X: <span id="coordX">0</span> | Y: <span id="coordY">0</span></div>
+            <div>Зум: <span id="zoomVal">100%</span></div>
         </div>
 
         <div class="section">
             <span class="label-text">Перегрів (Кулдаун)</span>
-            <div>Таймер: <span id="cooldownTimerText">0.0с</span> / 300с</div>
+            <div id="cooldownTimerText">0.0с / 300с</div>
             <div class="cooldown-container">
                 <div class="cooldown-bar" id="cooldownProgressBar"></div>
             </div>
         </div>
 
         <div class="section">
-            <span class="label-text">Кастомізація пензля</span>
-            <label style="font-size:12px; display:block; margin-bottom:4px;">Розмір пензля:</label>
+            <span class="label-text">Розмір пензля</span>
             <select id="brushSizeSelect">
                 <option value="1">1 × 1 піксель</option>
                 <option value="5">5 × 5 пікселів</option>
             </select>
         </div>
-
-        <button class="danger-btn" onclick="clearFullOnlineMap()">Очистити всю карту онлайн</button>
+        
+        <div class="section">
+            <span class="label-text">Поточний колір пензля</span>
+            <input type="color" id="nativeColorPicker" value="#a65d5d">
+            <p style="margin-top:5px; font-size:12px;">Код: <span id="colorCodeText" style="color:#00ffcc;">rhh</span></p>
+        </div>
     </div>
 
-    <script src="player.js"></script>
+    <script>
+        // ===================================================
+        // 1. КОНФІГУРАЦІЯ FIREBASE (Впиши сюди свій databaseURL!)
+        // ===================================================
+        const firebaseConfig = {
+            databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // ===================================================
+        // 2. НАЛАШТУВАННЯ КАНВАСУ ТА СТАНУ
+        // ===================================================
+        const canvas = document.getElementById("pixelCanvas");
+        const ctx = canvas.getContext("2d");
+        const viewport = document.getElementById("viewport");
+
+        const MAP_SIZE = 2048;
+        canvas.width = MAP_SIZE;
+        canvas.height = MAP_SIZE;
+
+        let mapData = {}; 
+        let zoomLevel = 1.0;
+        let currentColorCode = "rhh"; // Дефолтний колір гравця
+        let currentCooldown = 0;
+
+        const colorPaletteMap = {
+            "aaa": "#ffffff", // Суша
+            "zaa": "#afe7f3", // Вода
+            "rhh": "#a65d5d"  // Гравець
+        };
+
+        // Переклад кольору в код
+        document.getElementById('nativeColorPicker').addEventListener('input', (e) => {
+            let hex = e.target.value.toLowerCase();
+            if(hex === "#ffffff") currentColorCode = "aaa";
+            else if(hex === "#afe7f3") currentColorCode = "zaa";
+            else currentColorCode = "rhh";
+            document.getElementById('colorCodeText').innerText = currentColorCode;
+        });
+
+        // ===================================================
+        // 3. ЗАВАНТАЖЕННЯ КАРТИ ТА ОНЛАЙН СИНХРОНІЗАЦІЯ
+        // ===================================================
+        database.ref().once('value').then((snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                mapData = data;
+                renderFullMap();
+            }
+            // Вмикаємо онлайн-слухач тільки ПІСЛЯ першого завантаження
+            listenForLiveUpdates();
+        });
+
+        function listenForLiveUpdates() {
+            database.ref().on('child_changed', (snapshot) => {
+                const y = snapshot.key;
+                const rowData = snapshot.val();
+                if (!mapData[y]) mapData[y] = {};
+                for (let x in rowData) {
+                    mapData[y][x] = rowData[x];
+                    drawPixel(parseInt(x), parseInt(y), rowData[x]);
+                }
+            });
+        }
+
+        function renderFullMap() {
+            ctx.fillStyle = colorPaletteMap["zaa"];
+            ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
+            for (let y in mapData) {
+                for (let x in mapData[y]) {
+                    drawPixel(parseInt(x), parseInt(y), mapData[y][x]);
+                }
+            }
+        }
+
+        function drawPixel(x, y, colorCode) {
+            ctx.fillStyle = colorPaletteMap[colorCode] || "#afe7f3";
+            ctx.fillRect(x, y, 1, 1);
+        }
+
+        // ===================================================
+        // 4. ФІКС КЛІКУ ТА ПЕНЗЛЯ (ЗАХИСТ ВІД ОДНАКОВОГО КОЛЬОРУ)
+        // ===================================================
+        canvas.addEventListener("mousedown", (event) => {
+            if (currentCooldown >= 300) return;
+
+            const rect = canvas.getBoundingClientRect();
+            // Розрахунок координат з фіксом під ЗУМ
+            const clickX = Math.floor((event.clientX - rect.left) / zoomLevel);
+            const clickY = Math.floor((event.clientY - rect.top) / zoomLevel);
+
+            const brushSize = parseInt(document.getElementById("brushSizeSelect").value) || 1;
+            const halfBrush = Math.floor(brushSize / 2);
+            
+            let pixelsChanged = 0;
+
+            for (let dy = -halfBrush; dy <= halfBrush; dy++) {
+                for (let dx = -halfBrush; dx <= halfBrush; dx++) {
+                    const tx = clickX + dx;
+                    const ty = clickY + dy;
+
+                    if (tx >= 0 && tx < MAP_SIZE && ty >= 0 && ty < MAP_SIZE) {
+                        const existingColor = (mapData[ty] && mapData[ty][tx]) ? mapData[ty][tx] : "zaa";
+
+                        // !!! ФІКС БАГУ !!! Якщо колір збігається — ігноруємо цей піксель
+                        if (existingColor !== currentColorCode) {
+                            if (!mapData[ty]) mapData[ty] = {};
+                            mapData[ty][tx] = currentColorCode;
+                            drawPixel(tx, ty, currentColorCode);
+
+                            // Шлемо в Firebase
+                            database.ref(`${ty}/${tx}`).set(currentColorCode);
+                            pixelsChanged++;
+                        }
+                    }
+                }
+            }
+
+            // Нараховуємо кулдаун тільки за змінені блоки!
+            if (pixelsChanged > 0) {
+                currentCooldown += pixelsChanged * 2.0; 
+                if (currentCooldown > 300) currentCooldown = 300;
+                updateCooldownUI();
+            }
+        });
+
+        // ===================================================
+        // 5. ЗАЛІЗОБЕТОННИЙ ЗУМ (КОЛІЩАТКО)
+        // ===================================================
+        viewport.addEventListener("wheel", (event) => {
+            event.preventDefault(); // Забороняємо скрол всього сайту
+
+            const zoomSpeed = 0.1;
+            if (event.deltaY < 0) {
+                zoomLevel += zoomSpeed; // Вперед — збільшуємо
+            } else {
+                zoomLevel -= zoomSpeed; // Назад — зменшуємо
+            }
+
+            // Обмеження зуму: мінімум 40%, максимум 1200%
+            if (zoomLevel < 0.4) zoomLevel = 0.4;
+            if (zoomLevel > 12.0) zoomLevel = 12.0;
+
+            // Застосовуємо трансформацію до стилів
+            canvas.style.transform = `scale(${zoomLevel})`;
+            document.getElementById("zoomVal").innerText = `${Math.round(zoomLevel * 100)}%`;
+        }, { passive: false });
+
+        // Координати миші
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) / zoomLevel);
+            const y = Math.floor((e.clientY - rect.top) / zoomLevel);
+            if(x >= 0 && x < MAP_SIZE && y >= 0 && y < MAP_SIZE) {
+                document.getElementById('coordX').innerText = x;
+                document.getElementById('coordY').innerText = y;
+            }
+        });
+
+        // Система охолодження кулдауну
+        setInterval(() => {
+            if (currentCooldown > 0) {
+                currentCooldown -= 0.5;
+                if (currentCooldown < 0) currentCooldown = 0;
+                updateCooldownUI();
+            }
+        }, 100);
+
+        function updateCooldownUI() {
+            document.getElementById("cooldownTimerText").innerText = `${currentCooldown.toFixed(1)}с / 300с`;
+            document.getElementById("cooldownProgressBar").style.width = `${(currentCooldown / 300) * 100}%`;
+        }
+    </script>
 </body>
 </html>
