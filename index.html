@@ -2,7 +2,7 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>Pixel Map Engine v6.0 — Авторизація</title>
+    <title>Pixel Map Engine v6.0 — Повний Функціонал</title>
     <style>
         :root { --bg-main: #1a1a1a; --bg-panel: #2a2a2a; --bg-sidebar: #222; --text-color: #fff; --accent: #00ff00; }
         .theme-light { --bg-main: #e0e0e0; --bg-panel: #ffffff; --bg-sidebar: #f0f0f0; --text-color: #000; --accent: #0077ff; }
@@ -26,7 +26,7 @@
         .canvas-container { position: relative; display: flex; overflow: hidden; background: #111; border-radius: 6px; border: 2px solid #444; flex-grow: 1; height: 650px; }
         
         #hud { position: absolute; top: 15px; left: 15px; background: rgba(0, 0, 0, 0.85); padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 11px; border: 1px solid #444; pointer-events: none; display: flex; flex-direction: column; gap: 4px; z-index: 10; color: #fff; }
-        .hud-row { display: flex; gap: 12px; align-items: center; }
+        .hud-row { display: flex; gap: 12px; align-items: center; pointer-events: auto; }
 
         canvas#mapCanvas { background: #fff; width: 100%; height: 100%; display: block; }
         
@@ -46,7 +46,8 @@
         canvas.vis-canvas { background: #111; border: 1px solid #444; border-radius: 4px; display: block; }
         .status-on { color: #00ff00; font-weight: bold; }
         .status-off { color: #ff4444; font-weight: bold; }
-        .logout-btn { background: #aa2222; color: white; border: none; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 5px; }
+        .logout-btn { background: #aa2222; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; }
+        .logout-btn:hover { background: #ff3333; }
     </style>
 </head>
 <body>
@@ -70,7 +71,7 @@
         <div class="canvas-container" id="canvasContainer">
             <div id="hud">
                 <div class="hud-row">
-                    <div>Email: <strong id="hudUser" style="color:#ffcc00;">Завантаження...</strong></div>
+                    <div>Гравець: <strong id="hudUser" style="color:#ffcc00;">Завантаження...</strong></div>
                     <button class="logout-btn" onclick="handleLogout()">Вийти</button>
                 </div>
                 <div class="hud-row" style="margin-top: 4px; border-top: 1px solid #444; padding-top: 4px;">
@@ -95,33 +96,33 @@
             <div class="section">
                 <h3>Кастомізація</h3>
                 <div class="setting-item">
-                    <label>Тема</label>
+                    <label>Тема інтерфейсу</label>
                     <select id="themeSelector" onchange="changeTheme(this.value)">
-                        <option value="dark">Темна</option>
+                        <option value="dark">Темна (Стандарт)</option>
                         <option value="light">Світла</option>
                         <option value="cyber">Кіберпанк</option>
                     </select>
                 </div>
                 <div class="setting-item">
-                    <label>Сітка</label>
+                    <label>Відображати сітку</label>
                     <input type="checkbox" id="gridCheckbox" checked>
                 </div>
                 <div class="setting-item">
-                    <label>Гучність</label>
+                    <label>Загальна гучність</label>
                     <input type="range" id="volumeSlider" min="0" max="100" value="50">
                 </div>
             </div>
 
             <div class="section">
-                <h3>Музика</h3>
+                <h3>Візуалізація звуку</h3>
                 <canvas id="visualizerCanvas" class="vis-canvas" width="285" height="45"></canvas>
                 <canvas id="formulaCanvas" class="vis-canvas" width="285" height="45"></canvas>
             </div>
 
             <div class="section">
-                <h3>Стан</h3>
-                <div style="font-size: 12px;">Режим: <span id="brushStatus" class="status-off">Крапка</span></div>
-                <button id="resetMapBtn" style="margin-top:5px; background:#444; color:#fff; border:1px solid #666; padding:4px; cursor:pointer;">Очистити карту</button>
+                <h3>Стан профілю</h3>
+                <div style="font-size: 12px;">Режим: <span id="brushStatus" class="status-off">Крапка (Кліки)</span></div>
+                <button id="resetMapBtn" style="margin-top:5px; background:#444; color:#fff; border:1px solid #666; padding:6px; cursor:pointer; font-weight:bold; border-radius:4px;">Очистити всю карту онлайн</button>
             </div>
         </div>
     </div>
