@@ -14,8 +14,8 @@ let showGrid = true, soundVolume = 0.5, continuousDrawMode = false, isDragging =
 let audioCtx = null, analyserNode = null;
 let clickCount = 0;
 
-// Змінні кулдауну
-let cooldownTime = 0.0; // Поточний перегрів у секундах
+// Логіка Кулдауну
+let cooldownTime = 0.0; 
 const MAX_COOLDOWN = 300.0; // 5 хвилин
 let isCooldownBlocked = false;
 
@@ -44,7 +44,6 @@ function initAudio() {
 
 function playSoundFX(type) {
     initAudio(); 
-    // Зчитуємо актуальне значення гучності безпосередньо перед програванням
     soundVolume = parseInt(document.getElementById('volumeSlider').value) / 100;
     if (soundVolume === 0) return;
     try {
@@ -105,7 +104,7 @@ function drawFormulaGraph() {
     fCtx.stroke();
 }
 
-// Щосекундне зменшення кулдауну
+// Посекундне зменшення кулдауну
 setInterval(() => {
     if (cooldownTime > 0) {
         cooldownTime -= 1.0;
@@ -133,8 +132,8 @@ function updateCooldownUI() {
     }
 }
 
-// Розрахунок малювання сітки пікселів (1х1, 3х3, 5х5)
-function drawPixelBrush(baseX, baseY) {
+// Функція обробки розміру малювання (Пензлі 1х1, 3х3, 5х5)
+function executeBrushPainting(baseX, baseY) {
     if (isCooldownBlocked || !window.currentUser) return;
     
     const size = parseInt(document.getElementById('brushSizeSelector').value);
@@ -147,15 +146,17 @@ function drawPixelBrush(baseX, baseY) {
             let ty = baseY + dy;
             
             if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
+                // Якщо функція відправки повернула true (колір реально новий)
                 let success = sendPixel(tx, ty, selectedCode);
                 if (success) {
                     anyPixelPainted = true;
-                    cooldownTime += 0.5; // Накидуємо +0.5 сек за кожен унікальний піксель
+                    cooldownTime += 0.5; // Додаємо 0.5 сек кулдауну за кожен новий перефарбований піксель
                 }
             }
         }
     }
 
+    // Звуки та лічильник оновлюються ТІЛЬКИ якщо зафарбувався хоча б один новий піксель
     if (anyPixelPainted) {
         playSoundFX('click');
         clickCount++;
@@ -165,7 +166,7 @@ function drawPixelBrush(baseX, baseY) {
             cooldownTime = MAX_COOLDOWN;
             isCooldownBlocked = true;
             document.getElementById('cooldownTimer').classList.add('cooldown-blocked');
-            alert("ПЕРЕГРІВ! Кулдаун дійшов до 5 хвилин. Чекай повного скидання до 0!");
+            alert("ПЕРЕГРІВ! Ви заблоковані на 5 хвилин за інтенсивний спам пікселями.");
         }
         updateCooldownUI();
     }
@@ -244,7 +245,7 @@ canvas.addEventListener('mousemove', (e) => {
     if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
         document.getElementById('hudX').innerText = coords.x; document.getElementById('hudY').innerText = coords.y;
         if (isMouseDown && continuousDrawMode) {
-            drawPixelBrush(coords.x, coords.y);
+            executeBrushPainting(coords.x, coords.y);
         }
     }
 });
@@ -262,7 +263,7 @@ canvas.addEventListener('mousedown', (e) => {
                 picker.value = palette[clickedCode].hex; picker.dispatchEvent(new Event('input')); 
                 playSoundFX('pipette'); return; 
             }
-            drawPixelBrush(coords.x, coords.y);
+            executeBrushPainting(coords.x, coords.y);
         }
     }
 });
