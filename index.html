@@ -1,74 +1,30 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-    <meta charset="UTF-8">
-    <title>Pix Universe Final</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <style>
-        body { margin: 0; background: #0b0e14; color: white; font-family: sans-serif; overflow: hidden; }
-        canvas { image-rendering: pixelated; position: absolute; transform-origin: 0 0; }
-        #ui { position: fixed; top: 10px; right: 10px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; z-index: 10; }
-    </style>
-</head>
-<body>
-
-<div id="ui">
-    <label>Колір:</label>
-    <select id="colorCode"><option value="aaa">Білий (aaa)</option><option value="zaa">Вода (zaa)</option><option value="rhh">Червоний (rhh)</option></select><br>
-    <label>Розмір пензля:</label>
-    <input type="range" id="brushSize" min="1" max="5" value="1">
-</div>
-
-<canvas id="pixelCanvas" width="2048" height="2048"></canvas>
-
 <script>
+    // 1. Ініціалізація
     const firebaseConfig = { databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    
-    const canvas = document.getElementById("pixelCanvas");
-    const ctx = canvas.getContext("2d");
-    const palette = { "aaa": "#ffffff", "zaa": "#afe7f3", "rhh": "#a65d5d" };
-    
-    // Звук
-    const audioCtx = new AudioContext();
-    function playSound(code) {
-        const osc = audioCtx.createOscillator();
-        // Формула: беремо кодове значення кольору
-        const freq = (code.charCodeAt(0) + code.charCodeAt(1)) * 5;
-        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        osc.connect(audioCtx.destination);
-        osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+
+    // 2. ФУНКЦІЯ ПЛЄЄРА (не стирає, а ДОДАЄ)
+    function savePixel(x, y, color) {
+        // Ми пишемо в конкретну точку, не чіпаючи іншу базу
+        db.ref('multiplayer_map/' + y + '/' + x).set(color);
     }
 
-    // Рендер бази (Твоя структура y/x)
-    db.ref('multiplayer_map').on('value', (snap) => {
-        const data = snap.val();
-        if(!data) return;
-        for(let y in data) {
-            for(let x in data[y]) {
-                ctx.fillStyle = palette[data[y][x]] || "#000";
-                ctx.fillRect(x, y, 1, 1);
+    // 3. ФУНКЦІЯ ЗАВАНТАЖЕННЯ (бере тільки те, що є)
+    function loadMap() {
+        db.ref('multiplayer_map').on('value', (snap) => {
+            const data = snap.val();
+            if (data) {
+                renderFullMap(data); // Твоя функція малювання
             }
-        }
-    });
+        });
+    }
 
-    // Малювання
-    canvas.addEventListener("mousedown", (e) => {
-        const x = Math.floor(e.clientX);
-        const y = Math.floor(e.clientY);
-        const code = document.getElementById("colorCode").value;
-        const size = document.getElementById("brushSize").value;
-        
-        playSound(code);
-        
-        for(let i=0; i<size; i++) {
-            for(let j=0; j<size; j++) {
-                db.ref(`multiplayer_map/${y+i}/${x+j}`).set(code);
-            }
-        }
-    });
+    // 4. Твій генератор (ДОДАЄ масив)
+    async function uploadToFirebase(fullMapData) {
+        // Ми НЕ робимо .set(null), ми просто оновлюємо гілку
+        // Firebase сам об'єднає нові дані зі старими
+        await db.ref('multiplayer_map').update(fullMapData);
+        alert("Дані додано до бази без видалення!");
+    }
 </script>
-</body>
-</html>
