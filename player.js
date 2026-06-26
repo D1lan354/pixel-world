@@ -15,25 +15,33 @@ function sendPixel(x, y, colorCode) {
     return true; 
 }
 function loadMapFromFirebase() {
-    console.log("Завантаження карти з гілки multiplayer_map...");
-    // Вказуємо конкретний шлях, щоб не тягнути зайве
+    console.log("Завантаження карти...");
+    // Звертаємось рівно до тієї гілки, яку ти показав на скріншоті
     db.ref('multiplayer_map').on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
-            window.mapData = data; // Записуємо у глобальну змінну
-            renderFullMap();        // Викликаємо функцію малювання
-            console.log("Карта завантажена!");
+            window.mapData = data; 
+            renderFullMap(); // Викликаємо рендер
+            console.log("Карта в пам'яті, починаю малювати!");
         }
     });
 }
+
 function renderFullMap() {
-    ctx.clearRect(0, 0, MAP_SIZE, MAP_SIZE); // Чистимо канвас
+    // Чистимо канвас
+    ctx.fillStyle = "#afe7f3"; // Колір води (фон)
+    ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
+
+    // Перебираємо Y (рядки)
     for (let y in window.mapData) {
+        // Перебираємо X (колонки)
         for (let x in window.mapData[y]) {
             let colorCode = window.mapData[y][x];
-            // Малюємо піксель (заміни на свою логіку малювання)
-            ctx.fillStyle = colorPaletteMap[colorCode] || "#000";
-            ctx.fillRect(x, y, 1, 1);
+            // Малюємо піксель, якщо він є в палітрі
+            if (colorPaletteMap[colorCode]) {
+                ctx.fillStyle = colorPaletteMap[colorCode];
+                ctx.fillRect(parseInt(x), parseInt(y), 1, 1);
+            }
         }
     }
 }
