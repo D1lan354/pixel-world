@@ -18,7 +18,7 @@ let clickCount = 0;
 let cooldownTime = parseFloat(localStorage.getItem('pixel_cooldown')) || 0.0;
 const MAX_COOLDOWN = 300.0;
 
-// Поточна кастомна формула звуку, яку можна редагувати
+// Змінна для текстового коду звуку
 let soundFormula = "Math.sin(t * 0.2) * Math.exp(-t * 0.04)";
 
 function initAudio() {
@@ -31,7 +31,7 @@ function initAudio() {
     }
 }
 
-// Генератор звуку на основі живої формули тексту
+// Живий генератор звуку з формули
 function playSoundFX() {
     initAudio(); 
     const volumeInput = document.getElementById('volumeSlider');
@@ -47,11 +47,10 @@ function playSoundFX() {
         const buffer = audioCtx.createBuffer(1, bufferSize, sampleRate);
         const data = buffer.getChannelData(0);
 
-        // Генеруємо масив звуку напряму з текстової формули через безпечну функцію
+        // Перетворення тексту у функцію
         let waveFunction = new Function('t', `try { return ${soundFormula}; } catch(e) { return 0; }`);
 
         for (let i = 0; i < bufferSize; i++) {
-            // Переводимо індекс у відносний час t
             let t = (i / sampleRate) * 1000; 
             let sampleValue = waveFunction(t);
             if (isNaN(sampleValue)) sampleValue = 0;
@@ -70,7 +69,7 @@ function playSoundFX() {
         
         bufferSource.start();
     } catch(e) {
-        console.error("Помилка синтезу звуку:", e);
+        console.error(e);
     }
 }
 
@@ -110,13 +109,13 @@ function drawFormulaGraph() {
     fCtx.stroke();
 }
 
-// Оновлення формули користувачем
-function updateAudioFormula(newFormula) {
+// Функція оновлення коду звуку (викликається з інпуту)
+window.updateAudioFormula = function(newFormula) {
     soundFormula = newFormula;
     drawFormulaGraph();
-}
+};
 
-// Плавне щосекундне охолодження
+// Щосекундне охолодження
 setInterval(() => {
     if (cooldownTime > 0) {
         cooldownTime -= 1.0;
@@ -144,7 +143,7 @@ function updateCooldownUI() {
     }
 }
 
-// Фікс великого пензля: Перевірка ліміту всередині кожного кроку + захист бази від спаму
+// Розумне малювання великим пензлем: зупиняється на 300с миттєво
 function executeBrushPainting(baseX, baseY) {
     if (cooldownTime >= MAX_COOLDOWN || !window.currentUser) return;
     
@@ -154,7 +153,6 @@ function executeBrushPainting(baseX, baseY) {
     
     let pixelsToPaint = [];
 
-    // Збираємо координати кліку
     for (let dx = -offset; dx <= offset; dx++) {
         for (let dy = -offset; dy <= offset; dy++) {
             let tx = baseX + dx;
@@ -169,27 +167,25 @@ function executeBrushPainting(baseX, baseY) {
     let anyPixelPainted = false;
 
     pixelsToPaint.forEach((pixel) => {
-        // КРИТИЧНА ПЕРЕВІРКА: Якщо під час циклу таймер дійшов до 300 — наступні пікселі блокуються!
+        // Якщо під час циклу таймер вдарив у 300 — наступні з 25 пікселів малюватися НЕ будуть
         if (cooldownTime >= MAX_COOLDOWN) return;
 
-        // Штучна затримка між надсиланнями (захищає від білого екрана та вильоту бази)
         setTimeout(() => {
             if (cooldownTime >= MAX_COOLDOWN) return;
             
             let success = sendPixel(pixel.x, pixel.y, selectedCode);
             if (success) {
                 anyPixelPainted = true;
-                cooldownTime += 0.8; // Вага нагріву за піксель
+                cooldownTime += 0.8; // Додаємо нагрів за піксель
                 if (cooldownTime > MAX_COOLDOWN) cooldownTime = MAX_COOLDOWN;
                 localStorage.setItem('pixel_cooldown', cooldownTime);
                 updateCooldownUI();
             }
         }, delay);
         
-        delay += 15; // 15 мілісекунд затримки між запитами
+        delay += 15; // Інтервал проти спаму бази
     });
 
-    // Звуковий ефект та лічильник
     setTimeout(() => {
         if (anyPixelPainted) {
             playSoundFX();
@@ -200,7 +196,7 @@ function executeBrushPainting(baseX, baseY) {
     }, delay + 5);
 }
 
-// Палітра кольорів
+// Альфа-палітра
 const alphabet = "abcdefghijklmnopqrstuvwxyz"; const palette = {}; 
 for (let r = 0; r < 26; r++) {
     for (let g = 0; g < 26; g++) {
@@ -291,8 +287,10 @@ canvas.addEventListener('mousedown', (e) => {
                 e.preventDefault(); 
                 let key = coords.x + '_' + coords.y;
                 let clickedCode = (window.mapData && window.mapData[key]) ? window.mapData[key] : "zzz"; 
-                picker.value = palette[clickedCode] ? palette[clickedCode].hex : "#ffffff"; 
-                picker.dispatchEvent(new Event('input')); 
+                if(palette[clickedCode]) {
+                    picker.value = palette[clickedCode].hex; 
+                    picker.dispatchEvent(new Event('input')); 
+                }
                 return; 
             }
             executeBrushPainting(coords.x, coords.y);
@@ -329,6 +327,6 @@ document.getElementById('resetMapBtn').addEventListener('click', () => {
 window.addEventListener('resize', () => { canvas.width = container.clientWidth; canvas.height = container.clientHeight; redrawCanvas(); });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-picker.value = "#ff0000"; picker.dispatchEvent(new Event('input'));
+if (picker) { picker.value = "#ff0000"; picker.dispatchEvent(new Event('input')); }
 drawFormulaGraph();
 setTimeout(redrawCanvas, 600);
