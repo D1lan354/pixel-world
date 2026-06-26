@@ -66,10 +66,8 @@ mapRef.on('value', (snapshot) => {
     if (typeof window.redrawCanvas === "function") window.redrawCanvas();
 });
 
+// Замість sendPixel(x, y, color)
 function sendPixel(x, y, colorCode) {
-    if(!window.currentUser) return false;
-    let key = x + '_' + y;
-    if (window.mapData && window.mapData[key] === colorCode) return false; 
-    db.ref('multiplayer_map/' + key).set(colorCode);
-    return true; 
+    // Firebase створить гілки: multiplayer_map -> [y] -> [x] -> колір
+    db.ref('multiplayer_map/' + y + '/' + x).set(colorCode);
 }
