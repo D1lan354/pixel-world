@@ -23,20 +23,24 @@ const colorPaletteMap = {
 };
 
 function handleCanvasClick(event) {
-    // ... (код отримання координат)
+    // 1. Отримуємо координати
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((event.clientX - rect.left) / zoomLevel);
+    const y = Math.floor((event.clientY - rect.top) / zoomLevel);
 
-    // ПЕРЕВІРКА: чи малюємо ми тим самим кольором?
-    // Завантажуємо поточний стан пікселя
-    const existingColor = mapData[ty] ? mapData[ty][tx] : null;
-
-    if (existingColor === currentColorCode) {
-        console.log("Це вже цей колір, кулдаун не витрачається!");
-        return; // Виходимо з функції, нічого не робимо
+    // 2. ЗАХИСТ: Перевіряємо, чи ми вже не поставили там такий самий колір
+    // Якщо pixel вже має currentColorCode, просто виходимо і не витрачаємо кулдаун
+    // Припускаємо, що у нас є змінна 'mapData', де лежить поточна карта
+    if (mapData[y] && mapData[y][x] === currentColorCode) {
+        return; 
     }
 
-    // Якщо колір НОВИЙ — малюємо і витрачаємо кулдаун
-    database.ref(`${ty}/${tx}`).set(currentColorCode);
-    // ... (далі твій код оновлення кулдауну)
+    // 3. Якщо колір інший — ставимо піксель
+    database.ref(`${y}/${x}`).set(currentColorCode);
+    
+    // 4. Тільки тут додаємо кулдаун
+    currentCooldown += 2; 
+    updateCooldownUI();
 }
 
 // Протилежний пошук (з hex у твій короткий 3-символьний код)
