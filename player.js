@@ -26,6 +26,17 @@ function loadMapFromFirebase() {
         }
     });
 }
+function renderFullMap() {
+    ctx.clearRect(0, 0, MAP_SIZE, MAP_SIZE); // Чистимо канвас
+    for (let y in window.mapData) {
+        for (let x in window.mapData[y]) {
+            let colorCode = window.mapData[y][x];
+            // Малюємо піксель (заміни на свою логіку малювання)
+            ctx.fillStyle = colorPaletteMap[colorCode] || "#000";
+            ctx.fillRect(x, y, 1, 1);
+        }
+    }
+}
 
 // ==========================================
 // 2. ВИПРАВЛЕНЕ ЗЧИТУВАННЯ (для player.js)
