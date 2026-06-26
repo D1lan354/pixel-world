@@ -94,10 +94,11 @@ function renderFullMap(data) {
 }
 
 function listenToLiveUpdates() {
-    // Слухаємо лише останні точкові зміни в базі, щоб не перевантажувати мережу
+    // Підписка на зміни в базі даних
     database.ref().on('child_changed', (snapshot) => {
-        const y = snapshot.key;
-        const rowData = snapshot.val();
+        const y = snapshot.key; // номер рядка (y)
+        const rowData = snapshot.val(); // об'єкт з x: код_кольору
+        
         for (let x in rowData) {
             drawSinglePixelLocal(parseInt(x), parseInt(y), rowData[x]);
         }
