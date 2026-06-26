@@ -42,80 +42,71 @@
 <div id="canvas-wrapper"><canvas id="pixelCanvas" width="2048" height="2048"></canvas></div>
 
 <script>
-    const firebaseConfig = { databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com" };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    
     const canvas = document.getElementById("pixelCanvas");
     const ctx = canvas.getContext("2d");
-    
     let zoom = 1.0, posX = 0, posY = 0, isPaintingMode = false, isDragging = false;
-    let selectedCode = "aaa"; // Стандартний код
+    let lastX, lastY;
 
-    // Логіка підбору кольору з palette.js
-    document.getElementById('colorPicker').oninput = (e) => {
-        // Знаходимо найближчий ключ у палітрі
-        let hex = e.target.value;
-        // Тут проста логіка пошуку (можна ускладнити)
-        selectedCode = Object.keys(palette)[0]; 
-        console.log("Вибрано код:", selectedCode);
-    };
-
-    // Рендер
-    db.ref('multiplayer_map').on('child_added', (s) => s.forEach(x => draw(x.key, s.key, x.val())));
-    db.ref('multiplayer_map').on('child_changed', (s) => s.forEach(x => draw(x.key, s.key, x.val())));
-    
-    function draw(x, y, c) {
-        ctx.fillStyle = palette[c] || "#000";
-        ctx.fillRect(x, y, 1, 1);
-    }
-
-
-    // === ВИПРАВЛЕНА ЛОГІКА МИШІ ===
-canvas.addEventListener("mousedown", (e) => {
-    // Якщо режим малювання - малюємо
-    if(isPaintingMode) {
-        paint(e);
-    } 
-    // Якщо режим навігації - активуємо перетягування
-    else {
-        isDragging = true;
-        lastX = e.clientX;
-        lastY = e.clientY;
-        canvas.style.cursor = "grabbing";
-    }
-});
-
-window.addEventListener("mousemove", (e) => {
-    // Малювання при затиснутій кнопці, якщо режим малювання увімкнено
-    if(isPaintingMode && e.buttons === 1) {
-        paint(e);
-    } 
-    // Навігація при затиснутій кнопці, якщо режим малювання вимкнено
-    else if(isDragging) {
-        posX += (e.clientX - lastX);
-        posY += (e.clientY - lastY);
-        lastX = e.clientX;
-        lastY = e.clientY;
+    // 1. БЕЗПЕЧНИЙ ЗУМ (не залежить від режимів)
+    canvas.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        const newZoom = Math.max(0.2, Math.min(zoom * delta, 20));
+        posX -= (mouseX / zoom) * (newZoom - zoom);
+        posY -= (mouseY / zoom) * (newZoom - zoom);
+        zoom = newZoom;
         updateTransform();
-    }
-});
+    }, {passive: false});
 
-window.addEventListener("mouseup", () => {
-    isDragging = false;
-    canvas.style.cursor = isPaintingMode ? "crosshair" : "grab";
-});
+    // 2. БРОНЕБІЙНА ЛОГІКА МИШІ
+    canvas.addEventListener("mousedown", (e) => {
+        if(isPaintingMode) {
+            paint(e);
+        } else {
+            isDragging = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+        }
+    });
 
-    // Решта логіки (Shift, Зум, Малювання) така ж, як ми узгодили
+    window.addEventListener("mousemove", (e) => {
+        if(isPaintingMode && e.buttons === 1) {
+            paint(e);
+        } else if(isDragging) {
+            posX += (e.clientX - lastX);
+            posY += (e.clientY - lastY);
+            lastX = e.clientX;
+            lastY = e.clientY;
+            updateTransform();
+        }
+    });
+
+    window.addEventListener("mouseup", () => isDragging = false);
+
+    // 3. ПЕРЕМИКАЧ SHIFT
     window.addEventListener("keydown", (e) => {
         if(e.key === "Shift") {
             isPaintingMode = !isPaintingMode;
             document.getElementById('mode-status').innerText = isPaintingMode ? "МАЛЮВАННЯ" : "НАВІГАЦІЯ";
+            document.getElementById('mode-status').style.color = isPaintingMode ? "#00ff00" : "#ffcc00";
         }
     });
-    
-    // Ініціалізація фону
-    ctx.fillStyle = "#afe7f3"; ctx.fillRect(0, 0, 2048, 2048);
+
+    function paint(e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) / zoom);
+        const y = Math.floor((e.clientY - rect.top) / zoom);
+        // Тут беремо код з випадаючого списку або інпуту
+        const colorCode = "aaa"; 
+        db.ref(`multiplayer_map/${y}/${x}`).set(colorCode);
+    }
+
+    function updateTransform() {
+        canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${zoom})`;
+    }
 </script>
 </body>
 </html>
