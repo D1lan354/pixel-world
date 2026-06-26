@@ -17,18 +17,25 @@ const mapRef = db.ref('multiplayer_map');
 
 window.mapData = {};
 
-// ГЛОБАЛЬНИЙ СЛУХАЧ СЕСІЇ КОРИСТУВАЧА
+// Глобальний слухач авторизації
 auth.onAuthStateChanged((user) => {
     const authScreen = document.getElementById('authScreen');
     const hudUser = document.getElementById('hudUser');
     
     if (user) {
-        // Користувач успішно увійшов
         if(authScreen) authScreen.style.display = 'none';
-        if(hudUser) hudUser.innerText = user.email.split('@')[0]; // Показуємо логін до @gmail.com
         window.currentUser = user;
+        
+        // Витягуємо збережений нікнейм з Firebase Database
+        db.ref('users/' + user.uid).once('value').then((snapshot) => {
+            let userData = snapshot.val();
+            if (userData && userData.nickname) {
+                if(hudUser) hudUser.innerText = userData.nickname;
+            } else {
+                if(hudUser) hudUser.innerText = user.email.split('@')[0];
+            }
+        });
     } else {
-        // Користувач вийшов або не авторизований
         if(authScreen) authScreen.style.display = 'flex';
         if(hudUser) hudUser.innerText = '—';
         window.currentUser = null;
@@ -36,18 +43,27 @@ auth.onAuthStateChanged((user) => {
     if (typeof window.redrawCanvas === "function") window.redrawCanvas();
 });
 
-// ФУНКЦІЯ РЕЄСТРАЦІЇ
+// Реєстрація з нікнеймом
 function handleRegister() {
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value.trim();
-    if(!email || !password) return alert("Заповни пошту і пароль!");
+    const nickname = document.getElementById('authNickname').value.trim();
+    
+    if(!email || !password || !nickname) return alert("Заповни ВСІ поля включаючи Нікнейм!");
     
     auth.createUserWithEmailAndPassword(email, password)
-        .then(() => { alert("Реєстрація успішна! Ви увійшли."); })
+        .then((userCredential) => {
+            // Зберігаємо нікнейм у базі даних, прив'язуючи до UID акаунта
+            return db.ref('users/' + userCredential.user.uid).set({
+                nickname: nickname,
+                email: email
+            });
+        })
+        .then(() => { alert("Реєстрація успішна!"); })
         .catch((error) => { alert("Помилка реєстрації: " + error.message); });
 }
 
-// ФУНКЦІЯ ВХОДУ
+// Вхід за Email
 function handleLogin() {
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value.trim();
@@ -57,27 +73,31 @@ function handleLogin() {
         .catch((error) => { alert("Помилка входу: " + error.message); });
 }
 
-// ФУНКЦІЯ ВИХОДУ (Ось вона тепер залізобетонно працює!)
+// Залізобетонний вихід
 function handleLogout() {
     auth.signOut().then(() => {
-        // Очищаємо поля вводу, щоб старі дані не стирчали
         document.getElementById('authEmail').value = "";
         document.getElementById('authPassword').value = "";
-    }).catch((err) => {
-        console.error("Помилка при виході:", err);
-    });
+        document.getElementById('authNickname').value = "";
+    }).catch((err) => { console.error("Помилка при виході:", err); });
 }
 
-// Реал-тайм синхронізація
+// Синхронізація карти
 mapRef.on('value', (snapshot) => {
     window.mapData = snapshot.val() || {};
-    if (typeof window.redrawCanvas === "function") {
-        window.redrawCanvas();
-    }
+    if (typeof window.redrawCanvas === "function") window.redrawCanvas();
 });
 
+// Розумна функція відправки: перевіряє чи змінився колір перед записом!
 function sendPixel(x, y, colorCode) {
-    if(!window.currentUser) return; // Незалогінені не малюють
+    if(!window.currentUser) return false;
     let key = x + '_' + y;
+    
+    // Якщо клітинка вже розмальована цим кольором — ігноруємо клік
+    if (window.mapData && window.mapData[key] === colorCode) {
+        return false; 
+    }
+    
     db.ref('multiplayer_map/' + key).set(colorCode);
+    return true; // Повертає true, якщо піксель реально оновився
 }
