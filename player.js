@@ -1,43 +1,45 @@
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-<script src="config.js"></script> <script src="audio.js"></script>  <script src="player.js"></script> ```
 // ==========================================
-// ГЛОБАЛЬНІ ЗМІННІ ТА НАЛАШТУВАННЯ
+// ГЛОБАЛЬНІ ЗМІННІ ТА КОНФІГУРАЦІЯ
 // ==========================================
-const canvas = document.getElementById("pixelCanvas"); // Перевір ID свого canvas в HTML
+const canvas = document.getElementById("pixelCanvas");
 const ctx = canvas.getContext("2d");
+const viewport = document.getElementById("viewport"); // Контейнер, де лежить canvas
 
 const MAP_SIZE = 2048;
 canvas.width = MAP_SIZE;
 canvas.height = MAP_SIZE;
 
-let mapData = {}; // Тут зберігаємо всю карту з бази
+let mapData = {}; // Локальна матриця карти для миттєвих перевірок кольору
 let zoomLevel = 1.0;
-let currentColorCode = "aaa"; // Дефолтний колір пензля (білий)
+let currentColorCode = "aaa"; // "aaa" = біла суша, "zaa" = світло-блакитна вода
 let currentCooldown = 0;
 
-// ==========================================
-// 1. ІНІЦІАЛІЗАЦІЯ ТА З'ЄДНАННЯ З FIREBASE
-// ==========================================
-// Припускаємо, що firebase.initializeApp вже викликано в index.html або config.js
+// Твоя палітра для відображення коротких кодів на екрані
+const colorPaletteMap = {
+    "aaa": "#ffffff", // Суша
+    "zaa": "#afe7f3", // Світло-блакитна вода континентів
+    "rhh": "#a65d5d"  // Колір гравця
+};
+
+// З'єднання з Firebase (конфіг вже має бути ініціалізований в index.html)
 const database = firebase.database();
 
-// Завантажуємо карту при першому вході на сайт
+// ==========================================
+// 1. ЗАВАНТАЖЕННЯ ТА СИНХРОНІЗАЦІЯ З БАЗОЮ
+// ==========================================
 function loadMapFromFirebase() {
     console.log("Завантаження карти з Firebase...");
-    database.ref().once('value', (snapshot) => {
+    database.ref().once('value').then((snapshot) => {
         const data = snapshot.val();
         if (data) {
-            mapData = data; // Записуємо дані в локальний масив для перевірки кліків
+            mapData = data; // Зберігаємо карту в оперативку
             renderFullMap();
-            console.log("Карту успішно завантажено та відмальовано!");
-        } else {
-            console.log("База даних порожня. Очікування генерації карти...");
+            console.log("Карту успішно завантажено!");
         }
     });
 }
 
-// Слухаємо онлайн-оновлення (якщо інший гравець поставить піксель)
+// Онлайн-оновлення: коли інший гравець малює
 function listenForLiveUpdates() {
     database.ref().on('child_changed', (snapshot) => {
         const y = snapshot.key;
@@ -46,21 +48,17 @@ function listenForLiveUpdates() {
         if (!mapData[y]) mapData[y] = {};
         
         for (let x in rowData) {
-            mapData[y][x] = rowData[x]; // Оновлюємо локальну копію
-            drawPixel(parseInt(x), parseInt(y), rowData[x]); // Малюємо на екрані
+            mapData[y][x] = rowData[x];
+            drawPixel(parseInt(x), parseInt(y), rowData[x]);
         }
     });
 }
 
-// ==========================================
-// 2. ФУНКЦІЇ МАЛЮВАННЯ
-// ==========================================
 function renderFullMap() {
-    // Очищаємо канвас базовим кольором води (наприклад, блакитним)
-    ctx.fillStyle = "#aae0f5"; 
+    // Базове тло води
+    ctx.fillStyle = colorPaletteMap["zaa"];
     ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
 
-    // Проходимо по рядках і малюємо острови з бази
     for (let y in mapData) {
         for (let x in mapData[y]) {
             drawPixel(parseInt(x), parseInt(y), mapData[y][x]);
@@ -69,104 +67,143 @@ function renderFullMap() {
 }
 
 function drawPixel(x, y, colorCode) {
-    // Конвертуємо твій код кольору (наприклад "aaa" чи "zaa") у реальний HEX/RGB
-    // Якщо ти використовуєш чисті HEX коди (наприклад "#ffffff"), залиш просто colorCode
-    ctx.fillStyle = colorCode.startsWith("#") ? colorCode : "#" + colorCode; 
+    ctx.fillStyle = colorPaletteMap[colorCode] || "#afe7f3";
     ctx.fillRect(x, y, 1, 1);
 }
 
 // ==========================================
-// 3. ФІКС КЛІКУ ТА ЗАХИСТ ВІД СПАМУ КОЛЬОРОМ
+// 2. СИСТЕМА КЛІКУ, ПЕНЗЛЯ ТА ЗАХИСТУ ВІД СПАМУ
 // ==========================================
 function handleCanvasClick(event) {
-    if (currentCooldown > 0) {
-        console.log(`Зачекайте кулдаун! Залишилось: ${currentCooldown}с`);
+    if (currentCooldown >= 300) {
+        console.log("Перегрів! Зачекайте.");
         return;
     }
 
     const rect = canvas.getBoundingClientRect();
-    // Вираховуємо точні координати пікселя з урахуванням зуму
-    const tx = Math.floor((event.clientX - rect.left) / zoomLevel);
-    const ty = Math.floor((event.clientY - rect.top) / zoomLevel);
+    // Точні координати пікселя з урахуванням зуму
+    const clickX = Math.floor((event.clientX - rect.left) / zoomLevel);
+    const clickY = Math.floor((event.clientY - rect.top) / zoomLevel);
 
-    // Захист від виходу за межі карти
-    if (tx < 0 || tx >= MAP_SIZE || ty < 0 || ty >= MAP_SIZE) return;
+    // Отримуємо розмір пензля з твого UI селектора
+    const brushSelect = document.getElementById("brushSizeSelect");
+    const brushSize = brushSelect ? parseInt(brushSelect.value) : 1;
+    const halfBrush = Math.floor(brushSize / 2);
+    
+    let pixelsChanged = 0;
 
-    // ПЕРЕВІРКА: чи існує вже такий колір на цьому пікселі?
-    const existingColor = (mapData[ty] && mapData[ty][tx]) ? mapData[ty][tx] : null;
+    // Проходимо по сітці пензля (1x1 або 5x5)
+    for (let dy = -halfBrush; dy <= halfBrush; dy++) {
+        for (let dx = -halfBrush; dx <= halfBrush; dx++) {
+            const tx = clickX + dx;
+            const ty = clickY + dy;
 
-    if (existingColor === currentColorCode) {
-        console.log("БЛОКУВАННЯ: Ти малюєш по тому самому кольору! Кулдаун збережено.");
-        return; // Повністю виходимо з функції. База не смикається, кулдаун не йде!
+            if (tx >= 0 && tx < MAP_SIZE && ty >= 0 && ty < MAP_SIZE) {
+                const existingColor = (mapData[ty] && mapData[ty][tx]) ? mapData[ty][tx] : "zaa";
+
+                // НАЙВАЖЛИВІШИЙ ФІКС: якщо колір такий самий, ігноруємо цей піксель!
+                if (existingColor !== currentColorCode) {
+                    // Малюємо локально для швидкості
+                    if (!mapData[ty]) mapData[ty] = {};
+                    mapData[ty][tx] = currentColorCode;
+                    drawPixel(tx, ty, currentColorCode);
+
+                    // Відправляємо в базу
+                    database.ref(`${ty}/${tx}`).set(currentColorCode);
+                    pixelsChanged++;
+                }
+            }
+        }
     }
 
-    // Якщо колір новий — записуємо у Firebase
-    database.ref(`${ty}/${tx}`).set(currentColorCode)
-        .then(() => {
-            // Оновлюємо локально, щоб наступний клік по цьому ж місцю заблокувався
-            if (!mapData[ty]) mapData[ty] = {};
-            mapData[ty][tx] = currentColorCode;
-
-            // Запускаємо кулдаун (наприклад, 5 секунд)
-            startCooldown(5);
-        })
-        .catch((error) => {
-            console.error("Помилка запису в Firebase:", error);
-        });
+    // Кулдаун нараховується ТІЛЬКИ за реально змінені пікселі
+    if (pixelsChanged > 0) {
+        currentCooldown += pixelsChanged * 2.0; // +2 секунди за кожен новий піксель
+        if (currentCooldown > 300) currentCooldown = 300;
+        updateCooldownUI();
+    }
 }
 
 // ==========================================
-// 4. ФІКС ЗУМУ (ОБМЕЖЕННЯ МАСШТАБУ)
+// 3. ФІКС КОЛІЩАТКА (ЗУМ)
 // ==========================================
 function handleWheelZoom(event) {
-    event.preventDefault(); // Забороняємо скрол самої сторінки
+    event.preventDefault(); // Зупиняємо стандартний скрол сторінки
 
-    // Крок зуму
+    const zoomSpeed = 0.1;
+    let oldZoom = zoomLevel;
+
     if (event.deltaY < 0) {
-        zoomLevel += 0.2; // Наближення
+        zoomLevel += zoomSpeed; // Наближення
     } else {
-        zoomLevel -= 0.2; // Віддалення
+        zoomLevel -= zoomSpeed; // Віддалення
     }
 
-    // ОБМЕЖЕННЯ: мапа не стиснеться в нуль і не розтягнеться на гігабайти
-    if (zoomLevel < 0.4) zoomLevel = 0.4; // Мінімальний зум (40%)
-    if (zoomLevel > 15.0) zoomLevel = 15.0; // Максимальний зум (1500%)
+    // МЕЖІ ЗУМУ: Карта не стиснеться менше ніж 50% і не розлетиться більше 1500%
+    if (zoomLevel < 0.5) zoomLevel = 0.5;
+    if (zoomLevel > 15.0) zoomLevel = 15.0;
 
     // Застосовуємо трансформацію до Canvas
-    canvas.style.transformOrigin = "top left"; // Фіксуємо точку відліку
+    canvas.style.transformOrigin = "0 0"; // Фіксуємо лівий верхній кут для розрахунків
     canvas.style.transform = `scale(${zoomLevel})`;
 
-    // Оновлюємо текст зуму в UI, якщо у тебе є такий елемент
-    const zoomDisplay = document.getElementById("zoomScaleDisplay");
-    if (zoomDisplay) {
-        zoomDisplay.innerText = `Масштаб зуму: ${Math.round(zoomLevel * 100)}%`;
+    // Оновлюємо UI відображення масштабу
+    const zoomValText = document.getElementById("zoomVal");
+    if (zoomValText) {
+        zoomValText.innerText = `${Math.round(zoomLevel * 100)}%`;
     }
 }
 
 // ==========================================
-// 5. ЛОГІКА КУЛДАУНУ
+// 4. ТАЙМЕР ОХОЛОДЖЕННЯ (UI)
 // ==========================================
-function startCooldown(seconds) {
-    currentCooldown = seconds;
-    const cooldownTimerHTML = document.getElementById("cooldownTimer"); // Твій ID таймера в UI
-    
-    const interval = setInterval(() => {
-        if (currentCooldown <= 0) {
-            clearInterval(interval);
-            if (cooldownTimerHTML) cooldownTimerHTML.innerText = "Готово!";
-            return;
+function startCooldownSystem() {
+    setInterval(() => {
+        if (currentCooldown > 0) {
+            currentCooldown -= 0.5;
+            if (currentCooldown < 0) currentCooldown = 0;
+            updateCooldownUI();
         }
-        currentCooldown--;
-        if (cooldownTimerHTML) cooldownTimerHTML.innerText = `Таймер: ${currentCooldown}с / 300с`;
-    }, 1000);
+    }, 100);
 }
 
-// ==========================================
-// 6. ПІДКЛЮЧЕННЯ СЛУХАЧІВ ПОДІЙ (ІВЕНТІВ)
-// ==========================================
-canvas.addEventListener("click", handleCanvasClick);
-window.addEventListener("wheel", handleWheelZoom, { passive: false });
+function updateCooldownUI() {
+    const timerText = document.getElementById("cooldownTimerText");
+    const progressBar = document.getElementById("cooldownProgressBar");
+    
+    if (timerText) timerText.innerText = `${currentCooldown.toFixed(1)}с`;
+    if (progressBar) {
+        const percentage = (currentCooldown / 300) * 100;
+        progressBar.style.width = `${percentage}%`;
+    }
+}
 
-// Запуск усього при завантаженні сторінки
+// Перевірка миші для координат в панелі
+canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) / zoomLevel);
+    const y = Math.floor((e.clientY - rect.top) / zoomLevel);
+    
+    const coordX = document.getElementById('coordX');
+    const coordY = document.getElementById('coordY');
+    if (coordX && coordY && x >= 0 && x < MAP_SIZE && y >= 0 && y < MAP_SIZE) {
+        coordX.innerText = x;
+        coordY.innerText = y;
+    }
+});
+
+// ==========================================
+// 5. СЛУХАЧІ ПОДІЙ
+// ==========================================
+canvas.addEventListener("mousedown", handleCanvasClick);
+// Вішаємо прослуховування коліщатка саме на контейнер viewport, щоб воно працювало всюди
+if (viewport) {
+    viewport.addEventListener("wheel", handleWheelZoom, { passive: false });
+} else {
+    window.addEventListener("wheel", handleWheelZoom, { passive: false });
+}
+
+// Старт гри
 loadMapFromFirebase();
 listenForLiveUpdates();
+startCooldownSystem();
