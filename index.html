@@ -42,13 +42,20 @@
     const getHex = (code) => palette[code] || "#000";
 
     // Перемикач режиму
-    window.addEventListener("keydown", (e) => {
-        if(e.key === "Shift") {
-            isPaintingMode = !isPaintingMode;
-            document.getElementById('status').innerText = isPaintingMode ? "Режим: МАЛЮВАННЯ" : "Режим: НАВІГАЦІЯ";
-            canvas.style.cursor = isPaintingMode ? "crosshair" : "grab";
-        }
-    });
+window.addEventListener("keydown", (e) => {
+    if(e.key === "Shift") {
+        isPaintingMode = !isPaintingMode;
+        const status = document.getElementById('mode-status');
+        status.innerText = isPaintingMode ? "МАЛЮВАННЯ" : "НАВІГАЦІЯ";
+        status.style.color = isPaintingMode ? "#00ff00" : "#ffcc00";
+        canvas.style.cursor = isPaintingMode ? "crosshair" : "grab";
+    }
+});
+
+// Синхронізація слайдера
+document.getElementById('brushSize').oninput = (e) => {
+    document.getElementById('sizeVal').innerText = e.target.value;
+};
 
     // Логіка миші
     canvas.addEventListener("mousedown", (e) => {
