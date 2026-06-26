@@ -14,15 +14,9 @@ let showGrid = true, soundVolume = 0.5, continuousDrawMode = false, isDragging =
 let audioCtx = null, analyserNode = null;
 let clickCount = 0;
 
-// Завантаження кулдауну з LocalStorage, щоб не скидався при перезапуску сторінки
+// Завантаження кулдауну
 let cooldownTime = parseFloat(localStorage.getItem('pixel_cooldown')) || 0.0;
 const MAX_COOLDOWN = 300.0;
-
-let soundSettings = {
-    click: { wave: 'sine', freq: 400, duration: 0.15, filter: 8000, formula: "Math.sin(t * 0.05) * Math.exp(-t * 0.02)" },
-    pipette: { wave: 'triangle', freq: 800, duration: 0.15, filter: 8000, formula: "Math.sin(t * 0.1) * Math.exp(-t * 0.05)" },
-    switch: { wave: 'square', freq: 500, duration: 0.10, filter: 8000, formula: "0.2 * Math.sin(t * 0.03) * Math.exp(-t * 0.01)" }
-};
 
 function initAudio() {
     if (!audioCtx) {
@@ -34,34 +28,53 @@ function initAudio() {
     }
 }
 
+// Повноцінний генератор звуку (Синусоїдальна математична модель)
 function playSoundFX(type) {
     initAudio(); 
-    soundVolume = parseInt(document.getElementById('volumeSlider').value) / 100;
+    const volumeInput = document.getElementById('volumeSlider');
+    soundVolume = volumeInput ? (parseInt(volumeInput.value) / 100) : 0.5;
     if (soundVolume === 0) return;
+
     try {
         if (audioCtx.state === 'suspended') audioCtx.resume();
-        const cfg = soundSettings[type];
+        
         const oscillator = audioCtx.createOscillator();
         const gainNode = audioCtx.createGain();
         const biquadFilter = audioCtx.createBiquadFilter();
         
-        oscillator.type = cfg.wave;
-        oscillator.frequency.setValueAtTime(cfg.freq, audioCtx.currentTime);
         biquadFilter.type = "lowpass";
-        biquadFilter.frequency.setValueAtTime(cfg.filter, audioCtx.currentTime);
+        biquadFilter.frequency.setValueAtTime(8000, audioCtx.currentTime);
 
-        oscillator.connect(gainNode); gainNode.connect(biquadFilter); biquadFilter.connect(analyserNode);
+        oscillator.connect(gainNode); 
+        gainNode.connect(biquadFilter); 
+        biquadFilter.connect(analyserNode);
         
-        let duration = cfg.duration, sampleRate = 100;
-        gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-        for (let t = 0; t < sampleRate; t++) {
-            let timeOffset = (t / sampleRate) * duration;
-            let volumeMod = eval(cfg.formula);
-            if(isNaN(volumeMod) || volumeMod < 0) volumeMod = 0;
-            gainNode.gain.linearRampToValueAtTime(volumeMod * soundVolume * 0.2, audioCtx.currentTime + timeOffset);
+        let duration = 0.15;
+        oscillator.type = 'sine'; // Чиста синусоїда
+
+        if (type === 'click') {
+            oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // Нота Ля
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+            // Генерація форми хвилі f(t) = sin(t) * exp(-t)
+            gainNode.gain.linearRampToValueAtTime(soundVolume * 0.3, audioCtx.currentTime + 0.02);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        } else if (type === 'pipette') {
+            oscillator.type = 'triangle';
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(soundVolume * 0.2, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+        } else if (type === 'switch') {
+            oscillator.type = 'square';
+            oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(soundVolume * 0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
         }
-        oscillator.start(); oscillator.stop(audioCtx.currentTime + duration);
-    } catch(e) {}
+        
+        oscillator.start(); 
+        oscillator.stop(audioCtx.currentTime + duration);
+    } catch(e) {
+        console.log("Помилка аудіо:", e);
+    }
 }
 
 function drawLiveVisualizer() {
@@ -86,9 +99,11 @@ function drawFormulaGraph() {
     fCtx.strokeStyle = '#333'; fCtx.lineWidth = 1; fCtx.beginPath();
     fCtx.moveTo(0, fCanvas.height / 2); fCtx.lineTo(fCanvas.width, fCanvas.height / 2); fCtx.stroke();
     fCtx.strokeStyle = '#0088ff'; fCtx.lineWidth = 2; fCtx.beginPath();
-    let currentFormula = soundSettings.click.formula, sampleRate = 100;
+    
+    // Візуалізація математичної функції затухання звуку на графіку
+    let sampleRate = 100;
     for (let t = 0; t < sampleRate; t++) {
-        let volumeMod = 0; try { volumeMod = eval(currentFormula); if (isNaN(volumeMod)) volumeMod = 0; } catch (e) { volumeMod = 0; }
+        let volumeMod = Math.sin(t * 0.2) * Math.exp(-t * 0.04);
         let x = (t / sampleRate) * fCanvas.width;
         let y = fCanvas.height / 2 - (volumeMod * (fCanvas.height * 0.4));
         if (t === 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y);
@@ -96,7 +111,7 @@ function drawFormulaGraph() {
     fCtx.stroke();
 }
 
-// Постійне охолодження + Запис в пам'ять браузера
+// Охолодження таймера на 1 секунду
 setInterval(() => {
     if (cooldownTime > 0) {
         cooldownTime -= 1.0;
@@ -115,7 +130,6 @@ function updateCooldownUI() {
     let percentage = (cooldownTime / MAX_COOLDOWN) * 100;
     bar.style.width = Math.min(100, percentage) + "%";
     
-    // Колір шкали залежно від навантаження
     if (cooldownTime >= MAX_COOLDOWN) {
         bar.style.backgroundColor = '#ff4444';
         timerText.style.color = '#ff4444';
@@ -126,10 +140,12 @@ function updateCooldownUI() {
 }
 
 function executeBrushPainting(baseX, baseY) {
-    // Зміна логіки: блокуємо малювання ТІЛЬКИ якщо таймер рівний або більший за 300
+    // ЗМІНА ЛОГІКИ: Блокуємо малювання ВИКЛЮЧНО якщо таймер досяг максимуму (300)
+    // Якщо він починає падати (наприклад, 299с), малювати знову можна одразу!
     if (cooldownTime >= MAX_COOLDOWN || !window.currentUser) return;
     
-    const size = parseInt(document.getElementById('brushSizeSelector').value) || 1;
+    const brushSelector = document.getElementById('brushSizeSelector');
+    const size = brushSelector ? parseInt(brushSelector.value) : 1;
     let offset = Math.floor(size / 2);
     let anyPixelPainted = false;
 
@@ -142,7 +158,7 @@ function executeBrushPainting(baseX, baseY) {
                 let success = sendPixel(tx, ty, selectedCode);
                 if (success) {
                     anyPixelPainted = true;
-                    cooldownTime += 0.4; // Крок нагріву за піксель
+                    cooldownTime += 0.5; // Нагрів за один поставлений піксель
                 }
             }
         }
@@ -151,7 +167,8 @@ function executeBrushPainting(baseX, baseY) {
     if (anyPixelPainted) {
         playSoundFX('click');
         clickCount++;
-        document.getElementById('hudClicks').innerText = clickCount;
+        const clicksEl = document.getElementById('hudClicks');
+        if (clicksEl) clicksEl.innerText = clickCount;
         
         if (cooldownTime > MAX_COOLDOWN) cooldownTime = MAX_COOLDOWN;
         localStorage.setItem('pixel_cooldown', cooldownTime);
@@ -159,7 +176,7 @@ function executeBrushPainting(baseX, baseY) {
     }
 }
 
-// Генерація палітри
+// Генерація колірної палітри
 const alphabet = "abcdefghijklmnopqrstuvwxyz"; const palette = {}; 
 for (let r = 0; r < 26; r++) {
     for (let g = 0; g < 26; g++) {
@@ -183,12 +200,16 @@ function findNearestColor(hexColor) {
 }
 
 const picker = document.getElementById('colorPicker');
-picker.addEventListener('input', (e) => {
-    let nearest = findNearestColor(e.target.value);
-    selectedGameColor = nearest.hex; selectedCode = nearest.code;
-    document.getElementById('matchedColorBox').style.backgroundColor = nearest.hex;
-    document.getElementById('colorCode').innerText = nearest.code;
-});
+if (picker) {
+    picker.addEventListener('input', (e) => {
+        let nearest = findNearestColor(e.target.value);
+        selectedGameColor = nearest.hex; selectedCode = nearest.code;
+        const matchedBox = document.getElementById('matchedColorBox');
+        const codeText = document.getElementById('colorCode');
+        if (matchedBox) matchedBox.style.backgroundColor = nearest.hex;
+        if (codeText) codeText.innerText = nearest.code;
+    });
+}
 
 function redrawCanvas() {
     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.save();
@@ -229,58 +250,12 @@ canvas.addEventListener('mousemove', (e) => {
     if (isDragging) { camera.x = e.clientX - startPan.x; camera.y = e.clientY - startPan.y; redrawCanvas(); return; }
     const coords = screenToGrid(e.clientX, e.clientY);
     if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
-        document.getElementById('hudX').innerText = coords.x; document.getElementById('hudY').innerText = coords.y;
+        const hX = document.getElementById('hudX'); const hY = document.getElementById('hudY');
+        if (hX) hX.innerText = coords.x; if (hY) hY.innerText = coords.y;
         if (isMouseDown && continuousDrawMode) executeBrushPainting(coords.x, coords.y);
     }
 });
 
 canvas.addEventListener('mousedown', (e) => {
-    if (!window.currentUser) return; 
-    if (e.button === 1 || e.button === 2) { isDragging = true; startPan.x = e.clientX - camera.x; startPan.y = e.clientY - camera.y; e.preventDefault(); return; }
-    if (e.button === 0) {
-        isMouseDown = true; const coords = screenToGrid(e.clientX, e.clientY);
-        if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
-            if (e.ctrlKey) { 
-                e.preventDefault(); 
-                let key = coords.x + '_' + coords.y;
-                let clickedCode = (window.mapData && window.mapData[key]) ? window.mapData[key] : "zzz"; 
-                picker.value = palette[clickedCode].hex; picker.dispatchEvent(new Event('input')); 
-                playSoundFX('pipette'); return; 
-            }
-            executeBrushPainting(coords.x, coords.y);
-        }
-    }
-});
-
-window.addEventListener('mouseup', () => { isDragging = false; isMouseDown = false; });
-canvas.addEventListener('wheel', (e) => {
-    e.preventDefault(); const rect = canvas.getBoundingClientRect();
-    let mX = e.clientX - rect.left, mY = e.clientY - rect.top;
-    let gridX = (mX - camera.x) / zoom, gridY = (mY - camera.y) / zoom;
-    zoom = (e.deltaY < 0) ? Math.min(maxZoom, zoom * 1.2) : Math.max(minZoom, zoom / 1.2);
-    camera.x = mX - gridX * zoom; camera.y = mY - gridY * zoom;
-    document.getElementById('hudZoom').innerText = Math.round(zoom * 100) + "%"; redrawCanvas();
-});
-
-document.getElementById('gridCheckbox').addEventListener('change', (e) => { showGrid = e.target.checked; redrawCanvas(); });
-document.getElementById('volumeSlider').addEventListener('input', (e) => { soundVolume = e.target.value / 100; });
-
-window.addEventListener('keydown', (e) => {
-    if (e.key === 'Shift') {
-        e.preventDefault(); continuousDrawMode = !continuousDrawMode; playSoundFX('switch');
-        const statusEl = document.getElementById('brushStatus');
-        if (continuousDrawMode) { statusEl.innerText = "Пензель (Затискання)"; statusEl.className = "status-on"; }
-        else { statusEl.innerText = "Крапка (Кліки)"; statusEl.className = "status-off"; }
-    }
-});
-
-document.getElementById('resetMapBtn').addEventListener('click', () => {
-    if(confirm("Очистити всю карту?")) firebase.database().ref('multiplayer_map').remove();
-});
-
-window.addEventListener('resize', () => { canvas.width = container.clientWidth; canvas.height = container.clientHeight; redrawCanvas(); });
-canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-
-picker.value = "#ff0000"; picker.dispatchEvent(new Event('input'));
-drawFormulaGraph(); // Запуск рендеру формули
-setTimeout(redrawCanvas, 600);
+    initAudio(); // Активуємо аудіо-контекст при першому ж кліку по карті
+    if (!window
