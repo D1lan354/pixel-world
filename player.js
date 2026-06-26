@@ -14,13 +14,17 @@ let showGrid = true, soundVolume = 0.5, continuousDrawMode = false, isDragging =
 let audioCtx = null, analyserNode = null;
 let clickCount = 0;
 
+// Змінні кулдауну
+let cooldownTime = 0.0; // Поточний перегрів у секундах
+const MAX_COOLDOWN = 300.0; // 5 хвилин
+let isCooldownBlocked = false;
+
 let soundSettings = {
     click: { wave: 'sine', freq: 400, duration: 0.15, filter: 8000, formula: "Math.sin(t * 0.05) * Math.exp(-t * 0.02)" },
     pipette: { wave: 'triangle', freq: 800, duration: 0.15, filter: 8000, formula: "Math.sin(t * 0.1) * Math.exp(-t * 0.05)" },
     switch: { wave: 'square', freq: 500, duration: 0.10, filter: 8000, formula: "0.2 * Math.sin(t * 0.03) * Math.exp(-t * 0.01)" }
 };
 
-// Функція зміни теми (Тепер знову працює)
 function changeTheme(theme) {
     document.body.className = "";
     if(theme !== 'dark') document.body.classList.add('theme-' + theme);
@@ -39,7 +43,10 @@ function initAudio() {
 }
 
 function playSoundFX(type) {
-    initAudio(); if (soundVolume === 0) return;
+    initAudio(); 
+    // Зчитуємо актуальне значення гучності безпосередньо перед програванням
+    soundVolume = parseInt(document.getElementById('volumeSlider').value) / 100;
+    if (soundVolume === 0) return;
     try {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         const cfg = soundSettings[type];
@@ -96,6 +103,72 @@ function drawFormulaGraph() {
         if (t === 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y);
     }
     fCtx.stroke();
+}
+
+// Щосекундне зменшення кулдауну
+setInterval(() => {
+    if (cooldownTime > 0) {
+        cooldownTime -= 1.0;
+        if (cooldownTime < 0) cooldownTime = 0;
+    }
+    if (isCooldownBlocked && cooldownTime === 0) {
+        isCooldownBlocked = false;
+        document.getElementById('cooldownTimer').classList.remove('cooldown-blocked');
+    }
+    updateCooldownUI();
+}, 1000);
+
+function updateCooldownUI() {
+    const timerText = document.getElementById('cooldownTimer');
+    const bar = document.getElementById('cooldownBar');
+    
+    timerText.innerText = cooldownTime.toFixed(1) + "с";
+    let percentage = (cooldownTime / MAX_COOLDOWN) * 100;
+    bar.style.width = Math.min(100, percentage) + "%";
+    
+    if (isCooldownBlocked) {
+        bar.style.backgroundColor = '#ff4444';
+    } else {
+        bar.style.backgroundColor = percentage > 75 ? '#ffaa00' : '#00ff00';
+    }
+}
+
+// Розрахунок малювання сітки пікселів (1х1, 3х3, 5х5)
+function drawPixelBrush(baseX, baseY) {
+    if (isCooldownBlocked || !window.currentUser) return;
+    
+    const size = parseInt(document.getElementById('brushSizeSelector').value);
+    let offset = Math.floor(size / 2);
+    let anyPixelPainted = false;
+
+    for (let dx = -offset; dx <= offset; dx++) {
+        for (let dy = -offset; dy <= offset; dy++) {
+            let tx = baseX + dx;
+            let ty = baseY + dy;
+            
+            if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
+                let success = sendPixel(tx, ty, selectedCode);
+                if (success) {
+                    anyPixelPainted = true;
+                    cooldownTime += 0.5; // Накидуємо +0.5 сек за кожен унікальний піксель
+                }
+            }
+        }
+    }
+
+    if (anyPixelPainted) {
+        playSoundFX('click');
+        clickCount++;
+        document.getElementById('hudClicks').innerText = clickCount;
+        
+        if (cooldownTime >= MAX_COOLDOWN) {
+            cooldownTime = MAX_COOLDOWN;
+            isCooldownBlocked = true;
+            document.getElementById('cooldownTimer').classList.add('cooldown-blocked');
+            alert("ПЕРЕГРІВ! Кулдаун дійшов до 5 хвилин. Чекай повного скидання до 0!");
+        }
+        updateCooldownUI();
+    }
 }
 
 // Палітра
@@ -170,9 +243,8 @@ canvas.addEventListener('mousemove', (e) => {
     const coords = screenToGrid(e.clientX, e.clientY);
     if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
         document.getElementById('hudX').innerText = coords.x; document.getElementById('hudY').innerText = coords.y;
-        if (isMouseDown && continuousDrawMode && window.currentUser) {
-            sendPixel(coords.x, coords.y, selectedCode); playSoundFX('click');
-            clickCount++; document.getElementById('hudClicks').innerText = clickCount;
+        if (isMouseDown && continuousDrawMode) {
+            drawPixelBrush(coords.x, coords.y);
         }
     }
 });
@@ -190,13 +262,12 @@ canvas.addEventListener('mousedown', (e) => {
                 picker.value = palette[clickedCode].hex; picker.dispatchEvent(new Event('input')); 
                 playSoundFX('pipette'); return; 
             }
-            sendPixel(coords.x, coords.y, selectedCode); playSoundFX('click');
-            clickCount++; document.getElementById('hudClicks').innerText = clickCount;
+            drawPixelBrush(coords.x, coords.y);
         }
     }
 });
 
-window.addEventListener('mouseup', (e) => { isDragging = false; isMouseDown = false; });
+window.addEventListener('mouseup', () => { isDragging = false; isMouseDown = false; });
 
 canvas.addEventListener('wheel', (e) => {
     e.preventDefault(); const rect = canvas.getBoundingClientRect();
@@ -207,10 +278,7 @@ canvas.addEventListener('wheel', (e) => {
     document.getElementById('hudZoom').innerText = Math.round(zoom * 100) + "%"; redrawCanvas();
 });
 
-// Відновлено роботу чексбокса сітки
 document.getElementById('gridCheckbox').addEventListener('change', (e) => { showGrid = e.target.checked; redrawCanvas(); });
-
-// Відновлено роботу регулювання звуку
 document.getElementById('volumeSlider').addEventListener('input', (e) => { soundVolume = e.target.value / 100; });
 
 window.addEventListener('keydown', (e) => {
