@@ -1,3 +1,7 @@
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<script src="config.js"></script> <script src="audio.js"></script>  <script src="player.js"></script> ```
+
 // === КОНФІГУРАЦІЯ БАЗИ ДАНИХ FIREBASE ===
 const firebaseConfig = {
     databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com"
