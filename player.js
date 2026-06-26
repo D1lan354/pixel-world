@@ -4,43 +4,84 @@ const container = document.getElementById('canvasContainer');
 const vCanvas = document.getElementById('visualizerCanvas'); const vCtx = vCanvas ? vCanvas.getContext('2d') : null;
 const fCanvas = document.getElementById('formulaCanvas'); const fCtx = fCanvas ? fCanvas.getContext('2d') : null;
 
-if (canvas && container) {
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
+function resizeCanvas() {
+    if (canvas && container) {
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+        redrawCanvas();
+    }
 }
+window.addEventListener('resize', resizeCanvas);
 
 const MAP_WIDTH = 2048; const MAP_HEIGHT = 2048; const PIXEL_SIZE = 16; 
 
 let zoom = 1.0, maxZoom = 15.0, minZoom = 0.01;
-let camera = { x: canvas ? canvas.width/2 - 500 : 0, y: canvas ? canvas.height/2 - 500 : 0 };
+let camera = { x: 0, y: 0 };
 let showGrid = true, soundVolume = 0.5, continuousDrawMode = false, isDragging = false, isMouseDown = false, startPan = { x: 0, y: 0 };
 let audioCtx = null, analyserNode = null;
 let clickCount = 0;
 
-// Логіка кулдауну
 let cooldownTime = parseFloat(localStorage.getItem('pixel_cooldown')) || 0.0;
 const MAX_COOLDOWN = 300.0;
 
-// Змінна для текстового коду звуку
 let soundFormula = "Math.sin(t * 0.2) * Math.exp(-t * 0.04)";
 
-// Емуляція відправки на випадок, якщо база не підключена безпосередньо у вікні
+// Синхронізація з текстовим полем формули
+const formulaInput = document.getElementById('soundFormulaInput');
+if (formulaInput) {
+    formulaInput.addEventListener('input', (e) => {
+        soundFormula = e.target.value;
+        drawFormulaGraph();
+    });
+}
+
+// Конвертер завантаженого аудіофайлу у формулу f(t)
+const audioConverter = document.getElementById('audioConverterInput');
+if (audioConverter) {
+    audioConverter.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const tempAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            tempAudioCtx.decodeAudioData(event.target.result, function(buffer) {
+                const rawData = buffer.getChannelData(0); 
+                const samples = 100; 
+                const step = Math.floor(rawData.length / samples);
+                
+                // Знаходимо ключові частоти (проста генерація хвилі)
+                let points = [];
+                for (let i = 0; i < samples; i++) {
+                    points.push(rawData[i * step].toFixed(2));
+                }
+                
+                // Перетворюємо масив амплітуд у функцію згасання
+                let generatedFormula = `Math.sin(t * 0.5) * [${points.slice(0,15).join(',')}][Math.floor(t)%15] * Math.exp(-t * 0.02)`;
+                
+                soundFormula = generatedFormula;
+                if (formulaInput) formulaInput.value = generatedFormula;
+                drawFormulaGraph();
+                alert("Аудіо успішно конвертовано у формулу f(t)!");
+            });
+        };
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+if (!window.mapData) window.mapData = {};
+
 function sendPixel(x, y, code) {
-    if (!window.mapData) window.mapData = {};
     window.mapData[x + '_' + y] = code;
-    
-    // Спроба зберегти у Firebase, якщо він налаштований
     try {
         if (typeof firebase !== 'undefined' && firebase.database) {
             firebase.database().ref('multiplayer_map/' + x + '_' + y).set(code);
         }
-    } catch(e) { console.log("Firebase send bypass", e); }
-    
+    } catch(e) {}
     redrawCanvas();
     return true;
 }
 
-// Завантаження даних із Firebase у реальному часі
 try {
     if (typeof firebase !== 'undefined' && firebase.database) {
         firebase.database().ref('multiplayer_map').on('value', (snapshot) => {
@@ -48,12 +89,12 @@ try {
             redrawCanvas();
         });
     }
-} catch(e) { console.log("Firebase sync bypass", e); }
+} catch(e) {}
 
 function initAudio() {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (vCanvas) {
+        if (vCanvas && audioCtx) {
             analyserNode = audioCtx.createAnalyser();
             analyserNode.fftSize = 256;
             analyserNode.connect(audioCtx.destination);
@@ -64,15 +105,13 @@ function initAudio() {
 
 function playSoundFX() {
     initAudio(); 
-    const volumeInput = document.getElementById('volumeSlider');
-    soundVolume = volumeInput ? (parseInt(volumeInput.value) / 100) : 0.5;
     if (soundVolume === 0 || !audioCtx) return;
 
     try {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         
-        const duration = 0.18;
-        const sampleRate = audioCtx.sampleRate;
+        const duration = 0.2;
+        const sampleRate = audioCtx.rate || audioCtx.sampleRate;
         const bufferSize = sampleRate * duration;
         const buffer = audioCtx.createBuffer(1, bufferSize, sampleRate);
         const data = buffer.getChannelData(0);
@@ -83,27 +122,19 @@ function playSoundFX() {
             let t = (i / sampleRate) * 1000; 
             let sampleValue = waveFunction(t);
             if (isNaN(sampleValue)) sampleValue = 0;
-            data[i] = Math.max(-1, Math.min(1, sampleValue * soundVolume * 0.4));
+            data[i] = Math.max(-1, Math.min(1, sampleValue * soundVolume * 0.5));
         }
 
         const bufferSource = audioCtx.createBufferSource();
         bufferSource.buffer = buffer;
         
-        const biquadFilter = audioCtx.createBiquadFilter();
-        biquadFilter.type = "lowpass";
-        biquadFilter.frequency.setValueAtTime(7000, audioCtx.currentTime);
-
-        bufferSource.connect(biquadFilter);
         if (analyserNode) {
-            biquadFilter.connect(analyserNode);
+            bufferSource.connect(analyserNode);
         } else {
-            biquadFilter.connect(audioCtx.destination);
+            bufferSource.connect(audioCtx.destination);
         }
-        
         bufferSource.start();
-    } catch(e) {
-        console.error(e);
-    }
+    } catch(e) {}
 }
 
 function drawLiveVisualizer() {
@@ -126,112 +157,53 @@ function drawLiveVisualizer() {
 function drawFormulaGraph() {
     if (!fCanvas || !fCtx) return;
     fCtx.fillStyle = '#111'; fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height);
-    fCtx.strokeStyle = '#333'; fCtx.lineWidth = 1; fCtx.beginPath();
+    fCtx.strokeStyle = '#222'; fCtx.lineWidth = 1; fCtx.beginPath();
     fCtx.moveTo(0, fCanvas.height / 2); fCtx.lineTo(fCanvas.width, fCanvas.height / 2); fCtx.stroke();
-    fCtx.strokeStyle = '#0088ff'; fCtx.lineWidth = 2; fCtx.beginPath();
+    fCtx.strokeStyle = '#0088ff'; fCtx.lineWidth = 1.5; fCtx.beginPath();
     
     let sampleRate = 100;
     let waveFunction = new Function('t', `try { return ${soundFormula}; } catch(e) { return 0; }`);
     
     for (let t = 0; t < sampleRate; t++) {
-        let volumeMod = waveFunction(t);
-        if (isNaN(volumeMod)) volumeMod = 0;
+        let val = waveFunction(t);
+        if (isNaN(val)) val = 0;
         let x = (t / sampleRate) * fCanvas.width;
-        let y = fCanvas.height / 2 - (volumeMod * (fCanvas.height * 0.4));
+        let y = fCanvas.height / 2 - (val * (fCanvas.height * 0.4));
         if (t === 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y);
     }
     fCtx.stroke();
 }
 
-window.updateAudioFormula = function(newFormula) {
-    soundFormula = newFormula;
-    drawFormulaGraph();
-};
-
-setInterval(() => {
-    if (cooldownTime > 0) {
-        cooldownTime -= 1.0;
-        if (cooldownTime < 0) cooldownTime = 0;
-        localStorage.setItem('pixel_cooldown', cooldownTime);
-    }
-    updateCooldownUI();
-}, 1000);
-
-function updateCooldownUI() {
-    const timerText = document.getElementById('cooldownTimer');
-    const bar = document.getElementById('cooldownBar');
-    if(!timerText || !bar) return;
-
-    timerText.innerText = cooldownTime.toFixed(1) + "с";
-    let percentage = (cooldownTime / MAX_COOLDOWN) * 100;
-    bar.style.width = Math.min(100, percentage) + "%";
-    
-    if (cooldownTime >= MAX_COOLDOWN) {
-        bar.style.backgroundColor = '#ff4444';
-        timerText.style.color = '#ff4444';
-    } else {
-        bar.style.backgroundColor = percentage > 75 ? '#ffaa00' : '#00ff00';
-        timerText.style.color = '#fff';
-    }
-}
-
 function executeBrushPainting(baseX, baseY) {
-    if (cooldownTime >= MAX_COOLDOWN || !window.currentUser) return;
+    if (cooldownTime >= MAX_COOLDOWN) return;
     
     const brushSelector = document.getElementById('brushSizeSelector');
     const size = brushSelector ? parseInt(brushSelector.value) : 1;
     let offset = Math.floor(size / 2);
-    
-    let pixelsToPaint = [];
+    let painted = false;
 
     for (let dx = -offset; dx <= offset; dx++) {
         for (let dy = -offset; dy <= offset; dy++) {
             let tx = baseX + dx;
             let ty = baseY + dy;
             if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
-                pixelsToPaint.push({x: tx, y: ty});
+                let success = sendPixel(tx, ty, selectedCode);
+                if (success) painted = true;
             }
         }
     }
 
-    for (let i = pixelsToPaint.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pixelsToPaint[i], pixelsToPaint[j]] = [pixelsToPaint[j], pixelsToPaint[i]];
+    if (painted) {
+        playSoundFX();
+        clickCount++;
+        const clicksEl = document.getElementById('hudClicks');
+        if (clicksEl) clicksEl.innerText = clickCount;
+        cooldownTime = Math.min(MAX_COOLDOWN, cooldownTime + 1.5);
+        updateCooldownUI();
     }
-
-    let delay = 0;
-    let anyPixelPainted = false;
-
-    pixelsToPaint.forEach((pixel) => {
-        if (cooldownTime >= MAX_COOLDOWN) return; 
-
-        setTimeout(() => {
-            if (cooldownTime >= MAX_COOLDOWN) return;
-            
-            let success = sendPixel(pixel.x, pixel.y, selectedCode);
-            if (success) {
-                anyPixelPainted = true;
-                cooldownTime += 0.8; 
-                
-                if (cooldownTime > MAX_COOLDOWN) cooldownTime = MAX_COOLDOWN;
-                localStorage.setItem('pixel_cooldown', cooldownTime);
-                updateCooldownUI();
-            }
-        }, delay);
-        
-        delay += 15; 
-    });
-
-    setTimeout(() => {
-        if (anyPixelPainted) {
-            playSoundFX();
-            clickCount++;
-            const clicksEl = document.getElementById('hudClicks');
-            if (clicksEl) clicksEl.innerText = clickCount;
-        }
-    }, delay + 5);
 }
 
+// Палітра
 const alphabet = "abcdefghijklmnopqrstuvwxyz"; const palette = {}; 
 for (let r = 0; r < 26; r++) {
     for (let g = 0; g < 26; g++) {
@@ -246,7 +218,7 @@ let selectedGameColor = "#ff0000", selectedCode = "aaa";
 
 function findNearestColor(hexColor) {
     let r = parseInt(hexColor.slice(1, 3), 16), g = parseInt(hexColor.slice(3, 5), 16), b = parseInt(hexColor.slice(5, 7), 16);
-    let minDistance = Infinity, nearestCode = "zzz", nearestHex = "#ffffff";
+    let minDistance = Infinity, nearestCode = "aaa", nearestHex = "#ff0000";
     for (let code in palette) {
         let p = palette[code]; let dist = Math.sqrt((r - p.r)**2 + (g - p.g)**2 + (b - p.b)**2);
         if (dist < minDistance) { minDistance = dist; nearestCode = code; nearestHex = p.hex; }
@@ -259,40 +231,36 @@ if (picker) {
     picker.addEventListener('input', (e) => {
         let nearest = findNearestColor(e.target.value);
         selectedGameColor = nearest.hex; selectedCode = nearest.code;
-        const matchedBox = document.getElementById('matchedColorBox');
-        const codeText = document.getElementById('colorCode');
-        if (matchedBox) matchedBox.style.backgroundColor = nearest.hex;
-        if (codeText) codeText.innerText = nearest.code;
+        document.getElementById('matchedColorBox').style.backgroundColor = nearest.hex;
+        document.getElementById('colorCode').innerText = nearest.code;
     });
 }
 
 function redrawCanvas() {
     if (!ctx || !canvas) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.save();
+    ctx.fillStyle = "#151515"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
     ctx.translate(camera.x, camera.y); ctx.scale(zoom, zoom);
     
-    ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 4 / zoom;
+    ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 2 / zoom;
     ctx.strokeRect(0, 0, MAP_WIDTH * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE);
 
-    if (showGrid && zoom > 0.08) { 
-        ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 0.5 / zoom; ctx.beginPath();
+    if (showGrid && zoom > 0.15) { 
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 0.5 / zoom; ctx.beginPath();
         for (let x = 0; x <= MAP_WIDTH; x += 4) { ctx.moveTo(x * PIXEL_SIZE, 0); ctx.lineTo(x * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE); }
         for (let y = 0; y <= MAP_HEIGHT; y += 4) { ctx.moveTo(0, y * PIXEL_SIZE); ctx.lineTo(MAP_WIDTH * PIXEL_SIZE, y * PIXEL_SIZE); }
         ctx.stroke();
     }
 
-    if (window.mapData) {
-        for (let key in window.mapData) {
-            let coords = key.split('_');
-            let x = parseInt(coords[0]), y = parseInt(coords[1]);
-            let code = window.mapData[key];
-            ctx.fillStyle = palette[code] ? palette[code].hex : "#ffffff";
-            ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
-        }
+    for (let key in window.mapData) {
+        let coords = key.split('_');
+        let x = parseInt(coords[0]), y = parseInt(coords[1]);
+        let code = window.mapData[key];
+        ctx.fillStyle = palette[code] ? palette[code].hex : "#ffffff";
+        ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
     }
     ctx.restore();
 }
-window.redrawCanvas = redrawCanvas;
 
 function screenToGrid(clientX, clientY) {
     if (!canvas) return {x: 0, y: 0};
@@ -303,21 +271,11 @@ function screenToGrid(clientX, clientY) {
     };
 }
 
+// Обробники подій для миші (фікс малювання та перетягування)
 if (canvas) {
-    canvas.addEventListener('mousemove', (e) => {
-        if (isDragging) { camera.x = e.clientX - startPan.x; camera.y = e.clientY - startPan.y; redrawCanvas(); return; }
-        const coords = screenToGrid(e.clientX, e.clientY);
-        if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
-            const hX = document.getElementById('hudX'); const hY = document.getElementById('hudY');
-            if (hX) hX.innerText = coords.x; if (hY) hY.innerText = coords.y;
-            if (isMouseDown && continuousDrawMode) executeBrushPainting(coords.x, coords.y);
-        }
-    });
-
     canvas.addEventListener('mousedown', (e) => {
         initAudio();
-        if (!window.currentUser) return; 
-        if (e.button === 1 || e.button === 2) { 
+        if (e.button === 1 || e.button === 2 || e.shiftKey) { 
             isDragging = true; 
             startPan.x = e.clientX - camera.x; 
             startPan.y = e.clientY - camera.y; 
@@ -331,15 +289,30 @@ if (canvas) {
                 if (e.ctrlKey) { 
                     e.preventDefault(); 
                     let key = coords.x + '_' + coords.y;
-                    let clickedCode = (window.mapData && window.mapData[key]) ? window.mapData[key] : "zzz"; 
-                    if(palette[clickedCode]) {
-                        if (picker) {
-                            picker.value = palette[clickedCode].hex; 
-                            picker.dispatchEvent(new Event('input')); 
-                        }
+                    let clickedCode = window.mapData[key] || "zzz"; 
+                    if(palette[clickedCode] && picker) {
+                        picker.value = palette[clickedCode].hex; 
+                        picker.dispatchEvent(new Event('input')); 
                     }
                     return; 
                 }
+                executeBrushPainting(coords.x, coords.y);
+            }
+        }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        if (isDragging) { 
+            camera.x = e.clientX - startPan.x; 
+            camera.y = e.clientY - startPan.y; 
+            redrawCanvas(); 
+            return; 
+        }
+        const coords = screenToGrid(e.clientX, e.clientY);
+        if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
+            document.getElementById('hudX').innerText = coords.x; 
+            document.getElementById('hudY').innerText = coords.y;
+            if (isMouseDown && continuousDrawMode) {
                 executeBrushPainting(coords.x, coords.y);
             }
         }
@@ -349,10 +322,9 @@ if (canvas) {
         e.preventDefault(); const rect = canvas.getBoundingClientRect();
         let mX = e.clientX - rect.left, mY = e.clientY - rect.top;
         let gridX = (mX - camera.x) / zoom, gridY = (mY - camera.y) / zoom;
-        zoom = (e.deltaY < 0) ? Math.min(maxZoom, zoom * 1.2) : Math.max(minZoom, zoom / 1.2);
+        zoom = (e.deltaY < 0) ? Math.min(maxZoom, zoom * 1.15) : Math.max(minZoom, zoom / 1.15);
         camera.x = mX - gridX * zoom; camera.y = mY - gridY * zoom;
-        const hZoom = document.getElementById('hudZoom');
-        if (hZoom) hZoom.innerText = Math.round(zoom * 100) + "%"; 
+        document.getElementById('hudZoom').innerText = Math.round(zoom * 100) + "%"; 
         redrawCanvas();
     });
     
@@ -361,44 +333,44 @@ if (canvas) {
 
 window.addEventListener('mouseup', () => { isDragging = false; isMouseDown = false; });
 
-const gridCh = document.getElementById('gridCheckbox');
-if (gridCh) gridCh.addEventListener('change', (e) => { showGrid = e.target.checked; redrawCanvas(); });
+function updateCooldownUI() {
+    const timerText = document.getElementById('cooldownTimer');
+    const bar = document.getElementById('cooldownBar');
+    if(!timerText || !bar) return;
+    timerText.innerText = cooldownTime.toFixed(1) + "с / 300с";
+    bar.style.width = Math.min(100, (cooldownTime / MAX_COOLDOWN) * 100) + "%";
+}
 
-const volSl = document.getElementById('volumeSlider');
-if (volSl) volSl.addEventListener('input', (e) => { soundVolume = e.target.value / 100; });
+setInterval(() => {
+    if (cooldownTime > 0) {
+        cooldownTime = Math.max(0, cooldownTime - 1.0);
+        localStorage.setItem('pixel_cooldown', cooldownTime);
+        updateCooldownUI();
+    }
+}, 1000);
+
+document.getElementById('gridCheckbox').addEventListener('change', (e) => { showGrid = e.target.checked; redrawCanvas(); });
+document.getElementById('volumeSlider').addEventListener('input', (e) => { soundVolume = e.target.value / 100; });
 
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Shift') {
-        e.preventDefault(); continuousDrawMode = !continuousDrawMode;
+        continuousDrawMode = !continuousDrawMode;
         const statusEl = document.getElementById('brushStatus');
-        if (statusEl) {
-            if (continuousDrawMode) { statusEl.innerText = "Пензель (Затискання)"; statusEl.className = "status-on"; }
-            else { statusEl.innerText = "Крапка (Кліки)"; statusEl.className = "status-off"; }
-        }
+        if (continuousDrawMode) { statusEl.innerText = "Пензель (Затискання)"; statusEl.className = "status-on"; }
+        else { statusEl.innerText = "Крапка (Кліки)"; statusEl.className = "status-off"; }
     }
 });
 
-const resetBtn = document.getElementById('resetMapBtn');
-if (resetBtn) {
-    resetBtn.addEventListener('click', () => {
-        if(confirm("Очистити всю карту?")) {
-            try {
-                if (typeof firebase !== 'undefined' && firebase.database) {
-                    firebase.database().ref('multiplayer_map').remove();
-                }
-            } catch(e) {}
-            window.mapData = {};
-            redrawCanvas();
-        }
-    });
-}
-
-window.addEventListener('resize', () => { 
-    if (canvas && container) {
-        canvas.width = container.clientWidth; canvas.height = container.clientHeight; redrawCanvas(); 
+document.getElementById('resetMapBtn').addEventListener('click', () => {
+    if(confirm("Очистити всю карту?")) {
+        try { if (typeof firebase !== 'undefined' && firebase.database) firebase.database().ref('multiplayer_map').remove(); } catch(e) {}
+        window.mapData = {}; redrawCanvas();
     }
 });
 
-if (picker) { picker.value = "#ff0000"; picker.dispatchEvent(new Event('input')); }
-drawFormulaGraph();
-setTimeout(redrawCanvas, 600);
+// Стартова ініціалізація
+setTimeout(() => {
+    resizeCanvas();
+    drawFormulaGraph();
+    if (picker) picker.dispatchEvent(new Event('input'));
+}, 100);
