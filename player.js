@@ -24,6 +24,32 @@ const MAX_COOLDOWN = 300.0;
 // Змінна для текстового коду звуку
 let soundFormula = "Math.sin(t * 0.2) * Math.exp(-t * 0.04)";
 
+// Емуляція відправки на випадок, якщо база не підключена безпосередньо у вікні
+function sendPixel(x, y, code) {
+    if (!window.mapData) window.mapData = {};
+    window.mapData[x + '_' + y] = code;
+    
+    // Спроба зберегти у Firebase, якщо він налаштований
+    try {
+        if (typeof firebase !== 'undefined' && firebase.database) {
+            firebase.database().ref('multiplayer_map/' + x + '_' + y).set(code);
+        }
+    } catch(e) { console.log("Firebase send bypass", e); }
+    
+    redrawCanvas();
+    return true;
+}
+
+// Завантаження даних із Firebase у реальному часі
+try {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        firebase.database().ref('multiplayer_map').on('value', (snapshot) => {
+            window.mapData = snapshot.val() || {};
+            redrawCanvas();
+        });
+    }
+} catch(e) { console.log("Firebase sync bypass", e); }
+
 function initAudio() {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -355,7 +381,15 @@ window.addEventListener('keydown', (e) => {
 const resetBtn = document.getElementById('resetMapBtn');
 if (resetBtn) {
     resetBtn.addEventListener('click', () => {
-        if(confirm("Очистити всю карту?")) firebase.database().ref('multiplayer_map').remove();
+        if(confirm("Очистити всю карту?")) {
+            try {
+                if (typeof firebase !== 'undefined' && firebase.database) {
+                    firebase.database().ref('multiplayer_map').remove();
+                }
+            } catch(e) {}
+            window.mapData = {};
+            redrawCanvas();
+        }
     });
 }
 
