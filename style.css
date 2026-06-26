@@ -170,6 +170,29 @@ body {
     transition: background 0.2s;
 }
 
+/* Нове стильне меню */
+#ui-panel {
+    position: fixed; top: 20px; right: 20px;
+    width: 280px; background: rgba(15, 15, 20, 0.85);
+    backdrop-filter: blur(10px); /* Ефект розмиття */
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 20px; border-radius: 16px;
+    color: white; z-index: 2000;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    transition: transform 0.3s ease;
+}
+
+#ui-panel.hidden { transform: translateX(320px); }
+
+.menu-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.toggle-btn { 
+    background: #444; border: none; color: white; 
+    padding: 5px 10px; border-radius: 6px; cursor: pointer; 
+}
+
+.control-group { margin-bottom: 15px; }
+.control-group label { display: block; font-size: 11px; color: #aaa; margin-bottom: 5px; text-transform: uppercase; }
+
 #resetMapBtn:hover {
     background: #ff4444;
     border-color: #ff6666;
