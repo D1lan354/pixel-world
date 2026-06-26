@@ -3,23 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Пікс Мапа v6.0</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Пікс Мапа v6.0 (Мультиплеєр 2048 × 2048)</title>
+    
+    <link rel="stylesheet" href="style.css?v=8">
     
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
     <script>
+      // =======================================================================
+      // !!! УВАГА !!! ЗАМІНИ ЗНАЧЕННЯ У ЛАПКАХ НА СВОЇ РЕАЛЬНІ КЛЮЧІ FIREBASE
+      // =======================================================================
       const firebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_AUTH_DOMAIN",
-        databaseURL: "YOUR_DATABASE_URL",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_STORAGE_BUCKET",
-        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-        databaseURL: "YOUR_DATABASE_URL"
+          apiKey: "AIzaSyArIgEB93kQ_2xfJAjkvGuKVhYqwoKpB54",
+          authDomain: "pixel-world-db.firebaseapp.com",
+          databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com",
+          projectId: "pixel-world-db",
+          storageBucket: "pixel-world-db.firebasestorage.app",
+          messagingSenderId: "987006631539",
+          appId: "1:987006631539:web:8f8b732de1d26fa2ce3406",
+          measurementId: "G-PDMFFNHCD7"
       };
-      // Перевірка ініціалізації, щоб не було помилок у консолі
-      if (typeof firebase !== 'undefined' && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+      
+      // Ініціалізація бази даних (запуститься тільки якщо ти вставив свій apiKey)
+      if (typeof firebase !== 'undefined' && firebaseConfig.apiKey !== "ВСТАВ_СЮДИ_СВІЙ_API_KEY") {
         firebase.initializeApp(firebaseConfig);
       }
       window.currentUser = "Dylan"; 
@@ -27,53 +34,44 @@
 </head>
 <body>
 
+    <div class="top-nav-hint">
+        Світ: <span style="color: #00ffaa;">Спільний онлайн</span> | 
+        <strong>Shift</strong> — режим пензля | 
+        <strong>Ctrl + Клік</strong> — піпетка | 
+        <strong>Коліщатко</strong> — Зум
+    </div>
+
     <div class="main-container">
+        <div class="canvas-wrapper">
+            <div id="canvasContainer">
+                <canvas id="mapCanvas"></canvas>
+            </div>
+        </div>
+
         <div class="sidebar">
-            <div class="brand-title">Пікс Мапа v6.0</div>
+            <div class="brand-title">ПІКС МАПА v6.0</div>
 
             <div class="section">
-                <div class="section-title">Налаштування</div>
-                <div class="control-group">
-                    <label>Відображати сітку:</label>
-                    <input type="checkbox" id="gridCheckbox" checked>
+                <div class="section-title">ПАЛІТРА</div>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 10px;">
+                    <input type="color" id="colorPicker" value="#ff0000" style="width:45px; height:45px; border:none; cursor:pointer; background:none;">
+                    <div id="matchedColorBox" style="width:40px; height:40px; border-radius:6px; background-color:#ff0000; border:2px solid #555;"></div>
                 </div>
-                <div class="control-group">
-                    <label>Гучність:</label>
-                    <input type="range" id="volumeSlider" min="0" max="100" value="50">
-                </div>
-                <div class="control-group">
-                    <label>Тема інтерфейсу:</label>
-                    <select id="themeSelector">
-                        <option value="dark">Темна (Стандарт)</option>
-                    </select>
+                <div class="color-code-display">
+                    Код кольору: <span id="colorCode" style="color:#00ffaa; font-family:monospace; font-weight:bold;">aaa</span>
                 </div>
             </div>
 
             <div class="section">
-                <div class="section-title">Перегрів (кулдаун)</div>
-                <div style="font-size:11px; margin-bottom:5px; color:#aaa;">Таймер: <span id="cooldownTimer" style="color:#fff; font-weight:bold;">0.0с / 300с</span></div>
+                <div class="section-title">ПЕРЕГРІВ (КУЛДАУН)</div>
+                <div style="font-size:12px; margin-bottom:6px; color:#ccc;">Таймер: <span id="cooldownTimer" style="color:#fff; font-weight:bold;">0.0с / 300с</span></div>
                 <div class="progress-bg">
                     <div id="cooldownBar"></div>
                 </div>
             </div>
 
             <div class="section">
-                <div class="section-title">Код звуку f(t)</div>
-                <textarea id="soundFormulaInput" rows="2" style="width:100%; background:#111; color:#00ff00; border:1px solid #444; border-radius:4px; font-family:monospace; font-size:11px; resize:none; box-sizing:border-box; padding:4px; margin-bottom:6px;">Math.sin(t * 0.2) * Math.exp(-t * 0.04)</textarea>
-                
-                <div style="margin-bottom:8px;">
-                    <label class="file-upload-btn">
-                        <input type="file" id="audioConverterInput" accept="audio/*" style="display:none;">
-                        Завантажити & конвертувати аудіо
-                    </label>
-                </div>
-
-                <canvas id="visualizerCanvas" width="220" height="30" style="background:#111; border-radius:4px; margin-bottom:5px; border:1px solid #333; display:block;"></canvas>
-                <canvas id="formulaCanvas" width="220" height="30" style="background:#111; border-radius:4px; border:1px solid #333; display:block;"></canvas>
-            </div>
-
-            <div class="section">
-                <div class="section-title">Олівець та колір</div>
+                <div class="section-title">КАСТОМІЗАЦІЯ</div>
                 <div class="control-group">
                     <label>Розмір пензля:</label>
                     <select id="brushSizeSelector">
@@ -82,35 +80,55 @@
                         <option value="5">5 × 5 пікселів</option>
                     </select>
                 </div>
-                <div style="font-size:12px; margin-bottom: 8px; color:#ccc;">Режим: <span id="brushStatus" class="status-off">Крапка (Кліки)</span></div>
-                
-                <div style="display: flex; align-items: center; gap: 12px; margin-top: 10px;">
-                    <input type="color" id="colorPicker" value="#ff0000" style="width:40px; height:40px; border:none; cursor:pointer; background:none;">
-                    <div id="matchedColorBox" style="width:35px; height:35px; border-radius:4px; background-color:#ff0000; border:1px solid #444;"></div>
-                    <div style="font-size:12px; color:#aaa;">Код: <span id="colorCode" style="color:#00ff00; font-family:monospace; font-weight:bold;">aaa</span></div>
+                <div class="control-group">
+                    <label>Тема інтерфейсу:</label>
+                    <select id="themeSelector">
+                        <option value="dark">Темна (Стандарт)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Відображати сітку:</label>
+                    <input type="checkbox" id="gridCheckbox" checked>
+                </div>
+                <div class="control-group">
+                    <label>Загальна гучність:</label>
+                    <input type="range" id="volumeSlider" min="0" max="100" value="50">
                 </div>
             </div>
 
             <div class="section">
-                <div class="section-title">Дані гравця</div>
-                <div style="font-size:13px; margin-bottom:4px;">Гравець: <span id="hudUser" style="color:#ffcc00; font-weight:bold;">Dylan</span></div>
-                <div class="hud-grid">
-                    <div>X: <span id="hudX" style="color:#00ffaa;">0</span></div>
-                    <div>Y: <span id="hudY" style="color:#00ffaa;">0</span></div>
-                    <div>Zoom: <span id="hudZoom">100%</span></div>
+                <div class="section-title">ВІЗУАЛІЗАЦІЯ ЗВУКУ</div>
+                <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">ДИНАМІЧНА ХВИЛЯ:</div>
+                <canvas id="visualizerCanvas" width="220" height="35" style="background:#0a0a0a; border-radius:4px; margin-bottom:8px; border:1px solid #333; display:block;"></canvas>
+                
+                <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">ГРАФІК КОДУ F(T):</div>
+                <canvas id="formulaCanvas" width="220" height="35" style="background:#0a0a0a; border-radius:4px; border:1px solid #333; display:block; margin-bottom: 8px;"></canvas>
+                
+                <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">КОД ЗВУКУ F(T):</div>
+                <textarea id="soundFormulaInput" rows="2" style="width:100%; background:#0a0a0a; color:#00ff00; border:1px solid #333; border-radius:4px; font-family:monospace; font-size:11px; resize:none; box-sizing:border-box; padding:5px; margin-bottom:6px;">Math.sin(t * 0.2) * Math.exp(-t * 0.04)</textarea>
+                
+                <label class="file-upload-btn">
+                    <input type="file" id="audioConverterInput" accept="audio/*" style="display:none;">
+                    Завантажити & конвертувати аудіо
+                </label>
+            </div>
+
+            <div class="section">
+                <div class="section-title">СТАН ПРОФІЛЮ</div>
+                <div style="font-size:12px; margin-bottom: 8px; color:#eee;">Режим: <span id="brushStatus" class="status-off">Крапка (Кліки)</span></div>
+                
+                <div class="hud-grid" style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; font-size: 11px;">
+                    <div>Гравець: <span style="color:#ffcc00; font-weight:bold;">Dylan</span></div>
+                    <div>X: <span id="hudX" style="color:#00ffaa;">0</span> | Y: <span id="hudY" style="color:#00ffaa;">0</span></div>
+                    <div>Zoom: <span id="hudZoom" style="color:#fff;">100%</span></div>
                     <div>Кліки: <span id="hudClicks" style="color:#ffcc00;">0</span></div>
                 </div>
-                <button id="resetMapBtn" style="margin-top:10px;">Очистити карту</button>
-            </div>
-        </div>
-
-        <div class="canvas-wrapper">
-            <div id="canvasContainer">
-                <canvas id="mapCanvas"></canvas>
+                
+                <button id="resetMapBtn" class="danger-btn" style="width: 100%; margin-top: 10px;">Очистити всю карту онлайн</button>
             </div>
         </div>
     </div>
 
-    <script src="player.js"></script>
+    <script src="player.js?v=8"></script>
 </body>
 </html>
