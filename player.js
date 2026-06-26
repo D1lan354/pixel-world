@@ -14,9 +14,12 @@ let showGrid = true, soundVolume = 0.5, continuousDrawMode = false, isDragging =
 let audioCtx = null, analyserNode = null;
 let clickCount = 0;
 
-// Завантаження кулдауну
+// Логіка кулдауну
 let cooldownTime = parseFloat(localStorage.getItem('pixel_cooldown')) || 0.0;
 const MAX_COOLDOWN = 300.0;
+
+// Поточна кастомна формула звуку, яку можна редагувати
+let soundFormula = "Math.sin(t * 0.2) * Math.exp(-t * 0.04)";
 
 function initAudio() {
     if (!audioCtx) {
@@ -28,8 +31,8 @@ function initAudio() {
     }
 }
 
-// Повноцінний генератор звуку (Синусоїдальна математична модель)
-function playSoundFX(type) {
+// Генератор звуку на основі живої формули тексту
+function playSoundFX() {
     initAudio(); 
     const volumeInput = document.getElementById('volumeSlider');
     soundVolume = volumeInput ? (parseInt(volumeInput.value) / 100) : 0.5;
@@ -38,42 +41,36 @@ function playSoundFX(type) {
     try {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         
-        const oscillator = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
-        const biquadFilter = audioCtx.createBiquadFilter();
-        
-        biquadFilter.type = "lowpass";
-        biquadFilter.frequency.setValueAtTime(8000, audioCtx.currentTime);
+        const duration = 0.18;
+        const sampleRate = audioCtx.sampleRate;
+        const bufferSize = sampleRate * duration;
+        const buffer = audioCtx.createBuffer(1, bufferSize, sampleRate);
+        const data = buffer.getChannelData(0);
 
-        oscillator.connect(gainNode); 
-        gainNode.connect(biquadFilter); 
+        // Генеруємо масив звуку напряму з текстової формули через безпечну функцію
+        let waveFunction = new Function('t', `try { return ${soundFormula}; } catch(e) { return 0; }`);
+
+        for (let i = 0; i < bufferSize; i++) {
+            // Переводимо індекс у відносний час t
+            let t = (i / sampleRate) * 1000; 
+            let sampleValue = waveFunction(t);
+            if (isNaN(sampleValue)) sampleValue = 0;
+            data[i] = Math.max(-1, Math.min(1, sampleValue * soundVolume * 0.4));
+        }
+
+        const bufferSource = audioCtx.createBufferSource();
+        bufferSource.buffer = buffer;
+        
+        const biquadFilter = audioCtx.createBiquadFilter();
+        biquadFilter.type = "lowpass";
+        biquadFilter.frequency.setValueAtTime(7000, audioCtx.currentTime);
+
+        bufferSource.connect(biquadFilter);
         biquadFilter.connect(analyserNode);
         
-        let duration = 0.15;
-        oscillator.type = 'sine'; // Чиста синусоїда
-
-        if (type === 'click') {
-            oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // Нота Ля
-            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-            // Генерація форми хвилі f(t) = sin(t) * exp(-t)
-            gainNode.gain.linearRampToValueAtTime(soundVolume * 0.3, audioCtx.currentTime + 0.02);
-            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-        } else if (type === 'pipette') {
-            oscillator.type = 'triangle';
-            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-            gainNode.gain.setValueAtTime(soundVolume * 0.2, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-        } else if (type === 'switch') {
-            oscillator.type = 'square';
-            oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
-            gainNode.gain.setValueAtTime(soundVolume * 0.1, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
-        }
-        
-        oscillator.start(); 
-        oscillator.stop(audioCtx.currentTime + duration);
+        bufferSource.start();
     } catch(e) {
-        console.log("Помилка аудіо:", e);
+        console.error("Помилка синтезу звуку:", e);
     }
 }
 
@@ -100,10 +97,12 @@ function drawFormulaGraph() {
     fCtx.moveTo(0, fCanvas.height / 2); fCtx.lineTo(fCanvas.width, fCanvas.height / 2); fCtx.stroke();
     fCtx.strokeStyle = '#0088ff'; fCtx.lineWidth = 2; fCtx.beginPath();
     
-    // Візуалізація математичної функції затухання звуку на графіку
     let sampleRate = 100;
+    let waveFunction = new Function('t', `try { return ${soundFormula}; } catch(e) { return 0; }`);
+    
     for (let t = 0; t < sampleRate; t++) {
-        let volumeMod = Math.sin(t * 0.2) * Math.exp(-t * 0.04);
+        let volumeMod = waveFunction(t);
+        if (isNaN(volumeMod)) volumeMod = 0;
         let x = (t / sampleRate) * fCanvas.width;
         let y = fCanvas.height / 2 - (volumeMod * (fCanvas.height * 0.4));
         if (t === 0) fCtx.moveTo(x, y); else fCtx.lineTo(x, y);
@@ -111,7 +110,13 @@ function drawFormulaGraph() {
     fCtx.stroke();
 }
 
-// Охолодження таймера на 1 секунду
+// Оновлення формули користувачем
+function updateAudioFormula(newFormula) {
+    soundFormula = newFormula;
+    drawFormulaGraph();
+}
+
+// Плавне щосекундне охолодження
 setInterval(() => {
     if (cooldownTime > 0) {
         cooldownTime -= 1.0;
@@ -139,44 +144,63 @@ function updateCooldownUI() {
     }
 }
 
+// Фікс великого пензля: Перевірка ліміту всередині кожного кроку + захист бази від спаму
 function executeBrushPainting(baseX, baseY) {
-    // ЗМІНА ЛОГІКИ: Блокуємо малювання ВИКЛЮЧНО якщо таймер досяг максимуму (300)
-    // Якщо він починає падати (наприклад, 299с), малювати знову можна одразу!
     if (cooldownTime >= MAX_COOLDOWN || !window.currentUser) return;
     
     const brushSelector = document.getElementById('brushSizeSelector');
     const size = brushSelector ? parseInt(brushSelector.value) : 1;
     let offset = Math.floor(size / 2);
-    let anyPixelPainted = false;
+    
+    let pixelsToPaint = [];
 
+    // Збираємо координати кліку
     for (let dx = -offset; dx <= offset; dx++) {
         for (let dy = -offset; dy <= offset; dy++) {
             let tx = baseX + dx;
             let ty = baseY + dy;
-            
             if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
-                let success = sendPixel(tx, ty, selectedCode);
-                if (success) {
-                    anyPixelPainted = true;
-                    cooldownTime += 0.5; // Нагрів за один поставлений піксель
-                }
+                pixelsToPaint.push({x: tx, y: ty});
             }
         }
     }
 
-    if (anyPixelPainted) {
-        playSoundFX('click');
-        clickCount++;
-        const clicksEl = document.getElementById('hudClicks');
-        if (clicksEl) clicksEl.innerText = clickCount;
+    let delay = 0;
+    let anyPixelPainted = false;
+
+    pixelsToPaint.forEach((pixel) => {
+        // КРИТИЧНА ПЕРЕВІРКА: Якщо під час циклу таймер дійшов до 300 — наступні пікселі блокуються!
+        if (cooldownTime >= MAX_COOLDOWN) return;
+
+        // Штучна затримка між надсиланнями (захищає від білого екрана та вильоту бази)
+        setTimeout(() => {
+            if (cooldownTime >= MAX_COOLDOWN) return;
+            
+            let success = sendPixel(pixel.x, pixel.y, selectedCode);
+            if (success) {
+                anyPixelPainted = true;
+                cooldownTime += 0.8; // Вага нагріву за піксель
+                if (cooldownTime > MAX_COOLDOWN) cooldownTime = MAX_COOLDOWN;
+                localStorage.setItem('pixel_cooldown', cooldownTime);
+                updateCooldownUI();
+            }
+        }, delay);
         
-        if (cooldownTime > MAX_COOLDOWN) cooldownTime = MAX_COOLDOWN;
-        localStorage.setItem('pixel_cooldown', cooldownTime);
-        updateCooldownUI();
-    }
+        delay += 15; // 15 мілісекунд затримки між запитами
+    });
+
+    // Звуковий ефект та лічильник
+    setTimeout(() => {
+        if (anyPixelPainted) {
+            playSoundFX();
+            clickCount++;
+            const clicksEl = document.getElementById('hudClicks');
+            if (clicksEl) clicksEl.innerText = clickCount;
+        }
+    }, delay + 5);
 }
 
-// Генерація колірної палітри
+// Палітра кольорів
 const alphabet = "abcdefghijklmnopqrstuvwxyz"; const palette = {}; 
 for (let r = 0; r < 26; r++) {
     for (let g = 0; g < 26; g++) {
@@ -257,5 +281,54 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('mousedown', (e) => {
-    initAudio(); // Активуємо аудіо-контекст при першому ж кліку по карті
-    if (!window
+    initAudio();
+    if (!window.currentUser) return; 
+    if (e.button === 1 || e.button === 2) { isDragging = true; startPan.x = e.clientX - camera.x; startPan.y = e.clientY - camera.y; e.preventDefault(); return; }
+    if (e.button === 0) {
+        isMouseDown = true; const coords = screenToGrid(e.clientX, e.clientY);
+        if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
+            if (e.ctrlKey) { 
+                e.preventDefault(); 
+                let key = coords.x + '_' + coords.y;
+                let clickedCode = (window.mapData && window.mapData[key]) ? window.mapData[key] : "zzz"; 
+                picker.value = palette[clickedCode] ? palette[clickedCode].hex : "#ffffff"; 
+                picker.dispatchEvent(new Event('input')); 
+                return; 
+            }
+            executeBrushPainting(coords.x, coords.y);
+        }
+    }
+});
+
+window.addEventListener('mouseup', () => { isDragging = false; isMouseDown = false; });
+canvas.addEventListener('wheel', (e) => {
+    e.preventDefault(); const rect = canvas.getBoundingClientRect();
+    let mX = e.clientX - rect.left, mY = e.clientY - rect.top;
+    let gridX = (mX - camera.x) / zoom, gridY = (mY - camera.y) / zoom;
+    zoom = (e.deltaY < 0) ? Math.min(maxZoom, zoom * 1.2) : Math.max(minZoom, zoom / 1.2);
+    camera.x = mX - gridX * zoom; camera.y = mY - gridY * zoom;
+    document.getElementById('hudZoom').innerText = Math.round(zoom * 100) + "%"; redrawCanvas();
+});
+
+document.getElementById('gridCheckbox').addEventListener('change', (e) => { showGrid = e.target.checked; redrawCanvas(); });
+document.getElementById('volumeSlider').addEventListener('input', (e) => { soundVolume = e.target.value / 100; });
+
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Shift') {
+        e.preventDefault(); continuousDrawMode = !continuousDrawMode;
+        const statusEl = document.getElementById('brushStatus');
+        if (continuousDrawMode) { statusEl.innerText = "Пензель (Затискання)"; statusEl.className = "status-on"; }
+        else { statusEl.innerText = "Крапка (Кліки)"; statusEl.className = "status-off"; }
+    }
+});
+
+document.getElementById('resetMapBtn').addEventListener('click', () => {
+    if(confirm("Очистити всю карту?")) firebase.database().ref('multiplayer_map').remove();
+});
+
+window.addEventListener('resize', () => { canvas.width = container.clientWidth; canvas.height = container.clientHeight; redrawCanvas(); });
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+picker.value = "#ff0000"; picker.dispatchEvent(new Event('input'));
+drawFormulaGraph();
+setTimeout(redrawCanvas, 600);
