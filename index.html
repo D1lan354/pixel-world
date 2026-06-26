@@ -2,7 +2,7 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>Pix Universe - Pro Controller</title>
+    <title>Pix Universe - Pro Toggle Mode</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
@@ -11,95 +11,96 @@
         canvas { image-rendering: pixelated; position: absolute; transform-origin: 0 0; cursor: crosshair; }
         
         #ui-panel {
-            position: fixed; top: 10px; right: 10px; width: 260px;
+            position: fixed; top: 10px; right: 10px; width: 280px;
             background: rgba(20, 20, 25, 0.95); padding: 15px; border-radius: 12px;
             border: 1px solid #444; z-index: 1000; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
         }
-        .row { margin-bottom: 15px; }
-        label { display: block; font-size: 12px; color: #888; margin-bottom: 5px; }
+        #mode-indicator {
+            position: fixed; bottom: 20px; left: 20px; padding: 10px 20px;
+            background: rgba(0,0,0,0.7); border-radius: 20px; font-weight: bold;
+        }
+        .row { margin-bottom: 10px; }
+        label { display: block; font-size: 12px; color: #888; }
         input[type="color"] { width: 100%; height: 40px; border: none; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div id="ui-panel">
-    <h3>Контроль</h3>
+    <h3>Контроль (Shift — перемикач)</h3>
     <div class="row">
-        <label>Вибрати колір:</label>
+        <label>Вибір кольору:</label>
         <input type="color" id="colorPicker" value="#ffffff">
     </div>
     <div class="row">
         <label>Розмір пензля: <span id="sizeVal">1</span></label>
         <input type="range" id="brushSize" min="1" max="5" value="1">
     </div>
-    <div class="row" style="font-size: 12px; color: #aaa;">
-        <b>Shift</b> - Малювання<br>
-        <b>Без Shift</b> - Рух карти<br>
-        <b>Колесо</b> - Зум під курсором
+    <div style="font-size: 11px; color: #aaa;">
+        • <b>Shift</b>: перемикає Малювання/Рух<br>
+        • ЛКМ: Дія (малює або рухає карту)<br>
+        • Колесо: Зум під курсором
     </div>
 </div>
+
+<div id="mode-indicator" style="color: #ffcc00;">Режим: Навігація</div>
 
 <div id="canvas-wrapper">
     <canvas id="pixelCanvas" width="2048" height="2048"></canvas>
 </div>
 
 <script>
-    // 1. БЕЗПЕЧНА ІНІЦІАЛІЗАЦІЯ
     const firebaseConfig = { databaseURL: "https://pixel-world-db-default-rtdb.firebaseio.com" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     
     const canvas = document.getElementById("pixelCanvas");
     const ctx = canvas.getContext("2d");
+    const modeInd = document.getElementById("mode-indicator");
     
-    // Стан
     let zoom = 1.0, posX = 0, posY = 0;
+    let isPaintingMode = false; // Toggle-режим
     let isDragging = false;
     let lastX, lastY;
     
-    // Палітра (Коди бази -> HEX)
     const palette = { 
         "aaa": { hex: "#ffffff", r: 255, g: 255, b: 255 },
         "zaa": { hex: "#afe7f3", r: 175, g: 231, b: 243 },
         "rhh": { hex: "#a65d5d", r: 166, g: 93, b: 93 }
     };
-    
     let selectedCode = "aaa";
 
-    // 2. АВТО-ПІДБІР КОЛЬОРУ (Nearest Neighbor)
-    function hexToRgb(hex) {
-        let r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
-        return {r, g, b};
-    }
-
+    // Логіка вибору кольору
     function findNearestColor(hex) {
-        const rgb = hexToRgb(hex);
+        let r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
         let minDiff = 999999;
         let bestCode = "aaa";
-        
         for (let code in palette) {
             let p = palette[code];
-            let diff = Math.sqrt(Math.pow(rgb.r - p.r, 2) + Math.pow(rgb.g - p.g, 2) + Math.pow(rgb.b - p.b, 2));
+            let diff = Math.sqrt(Math.pow(r - p.r, 2) + Math.pow(g - p.g, 2) + Math.pow(b - p.b, 2));
             if (diff < minDiff) { minDiff = diff; bestCode = code; }
         }
         return bestCode;
     }
 
-    document.getElementById('colorPicker').oninput = (e) => {
-        selectedCode = findNearestColor(e.target.value);
-    };
+    document.getElementById('colorPicker').oninput = (e) => selectedCode = findNearestColor(e.target.value);
 
-    // 3. ЯДРО МАЛЮВАННЯ ТА ЗУМУ
-    function updateTransform() {
-        canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${zoom})`;
-    }
+    // Зміна режиму Shift
+    window.addEventListener("keydown", (e) => {
+        if(e.key === "Shift") {
+            isPaintingMode = !isPaintingMode;
+            modeInd.innerText = isPaintingMode ? "Режим: МАЛЮВАННЯ" : "Режим: НАВІГАЦІЯ";
+            modeInd.style.color = isPaintingMode ? "#00ff00" : "#ffcc00";
+            canvas.style.cursor = isPaintingMode ? "crosshair" : "grab";
+        }
+    });
 
+    // Малювання
     function paint(e) {
         const rect = canvas.getBoundingClientRect();
         const x = Math.floor((e.clientX - rect.left) / zoom);
         const y = Math.floor((e.clientY - rect.top) / zoom);
         const size = parseInt(document.getElementById("brushSize").value);
-        
         for(let i=0; i<size; i++) {
             for(let j=0; j<size; j++) {
                 db.ref(`multiplayer_map/${y+i}/${x+j}`).set(selectedCode);
@@ -107,68 +108,59 @@
         }
     }
 
-    // 4. СЛУХАЧІ МИШІ ТА КЛАВІАТУРИ
+    // Миша
     canvas.addEventListener("mousedown", (e) => {
-        if(e.shiftKey) paint(e);
-        else {
+        if(isPaintingMode) {
+            paint(e);
+        } else {
             isDragging = true;
             lastX = e.clientX;
             lastY = e.clientY;
+            canvas.style.cursor = "grabbing";
         }
     });
 
     window.addEventListener("mousemove", (e) => {
-        if(e.shiftKey && e.buttons === 1) paint(e);
-        else if(isDragging) {
+        if(isPaintingMode && e.buttons === 1) {
+            paint(e);
+        } else if(isDragging) {
             posX += (e.clientX - lastX);
             posY += (e.clientY - lastY);
             lastX = e.clientX;
             lastY = e.clientY;
-            updateTransform();
+            canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${zoom})`;
         }
     });
 
-    window.addEventListener("mouseup", () => isDragging = false);
+    window.addEventListener("mouseup", () => {
+        isDragging = false;
+        canvas.style.cursor = isPaintingMode ? "crosshair" : "grab";
+    });
 
-    // ЗУМ ПІД КУРСОРОМ
+    // Зум
     canvas.addEventListener("wheel", (e) => {
         e.preventDefault();
-        const mouseX = e.clientX - canvas.getBoundingClientRect().left;
-        const mouseY = e.clientY - canvas.getBoundingClientRect().top;
-        
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
         const delta = e.deltaY > 0 ? 0.9 : 1.1;
         const newZoom = Math.max(0.2, Math.min(zoom * delta, 20));
-        
-        // Математика зуму відносно курсора
         posX -= (mouseX / zoom) * (newZoom - zoom);
         posY -= (mouseY / zoom) * (newZoom - zoom);
-        
         zoom = newZoom;
-        updateTransform();
+        canvas.style.transform = `translate(${posX}px, ${posY}px) scale(${zoom})`;
     }, {passive: false});
 
-    // 5. РЕНДЕР (ОПТИМІЗОВАНИЙ)
-    db.ref('multiplayer_map').on('child_added', (snap) => {
-        const y = parseInt(snap.key);
-        snap.forEach(xSnap => {
-            const x = parseInt(xSnap.key);
-            ctx.fillStyle = palette[xSnap.val()] ? palette[xSnap.val()].hex : "#000";
-            ctx.fillRect(x, y, 1, 1);
-        });
-    });
-
-    db.ref('multiplayer_map').on('child_changed', (snap) => {
-        const y = parseInt(snap.key);
-        snap.forEach(xSnap => {
-            const x = parseInt(xSnap.key);
-            ctx.fillStyle = palette[xSnap.val()] ? palette[xSnap.val()].hex : "#000";
-            ctx.fillRect(x, y, 1, 1);
-        });
-    });
-
-    // Ініціалізація фону
-    ctx.fillStyle = "#afe7f3";
-    ctx.fillRect(0, 0, 2048, 2048);
+    // Рендер
+    db.ref('multiplayer_map').on('child_added', (s) => s.forEach(x => draw(x.key, s.key, x.val())));
+    db.ref('multiplayer_map').on('child_changed', (s) => s.forEach(x => draw(x.key, s.key, x.val())));
+    function draw(x, y, c) {
+        ctx.fillStyle = palette[c] ? palette[c].hex : "#000";
+        ctx.fillRect(x, y, 1, 1);
+    }
+    
+    // Фон
+    ctx.fillStyle = "#afe7f3"; ctx.fillRect(0, 0, 2048, 2048);
 </script>
 </body>
 </html>
