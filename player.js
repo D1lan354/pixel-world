@@ -22,6 +22,23 @@ const colorPaletteMap = {
     "rhh": "#a65d5d"  // Світло-коричневий / червонуватий колір гравців
 };
 
+function handleCanvasClick(event) {
+    // ... (код отримання координат)
+
+    // ПЕРЕВІРКА: чи малюємо ми тим самим кольором?
+    // Завантажуємо поточний стан пікселя
+    const existingColor = mapData[ty] ? mapData[ty][tx] : null;
+
+    if (existingColor === currentColorCode) {
+        console.log("Це вже цей колір, кулдаун не витрачається!");
+        return; // Виходимо з функції, нічого не робимо
+    }
+
+    // Якщо колір НОВИЙ — малюємо і витрачаємо кулдаун
+    database.ref(`${ty}/${tx}`).set(currentColorCode);
+    // ... (далі твій код оновлення кулдауну)
+}
+
 // Протилежний пошук (з hex у твій короткий 3-символьний код)
 function getCodeFromHex(hex) {
     for (let code in colorPaletteMap) {
