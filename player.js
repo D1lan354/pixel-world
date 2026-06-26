@@ -16,7 +16,7 @@ window.addEventListener('resize', resizeCanvas);
 const MAP_WIDTH = 2048; const MAP_HEIGHT = 2048; const PIXEL_SIZE = 16; 
 
 let zoom = 1.0, maxZoom = 15.0, minZoom = 0.01;
-let camera = { x: 100, y: 100 };
+let camera = { x: 50, y: 50 };
 let showGrid = true, soundVolume = 0.5, continuousDrawMode = false, isDragging = false, isMouseDown = false, startPan = { x: 0, y: 0 };
 let audioCtx = null, analyserNode = null;
 let clickCount = 0;
@@ -41,9 +41,9 @@ let selectedGameColor = "#ff0000", selectedCode = "aaa";
 
 if (!window.mapData) window.mapData = {};
 
-// НАДІЙНА ФУНКЦІЯ ВІДПРАВКИ ПІКСЕЛЯ З ПЕРЕВІРКОЮ НА ДУБЛІКАТ КОЛЬОРУ
+// ФУНКЦІЯ З ПЕРЕВІРКОЮ НА ДУБЛІКАТ
 function sendPixel(x, y, code) {
-    // Жорсткий блок: якщо колір вже такий самий — виходимо і повертаємо false
+    // Якщо колір у цій точці вже такий самий - ігноруємо
     if (window.mapData[x + '_' + y] === code) {
         return false; 
     }
@@ -57,26 +57,24 @@ function sendPixel(x, y, code) {
     return true;
 }
 
-// Функція малювання карти
 function redrawCanvas() {
     if (!ctx || !canvas) return;
     
-    // Темно-сірий фон за межами полотна
-    ctx.fillStyle = "#141414"; 
+    // Темний фон за межами карти
+    ctx.fillStyle = "#121212"; 
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     ctx.save();
     ctx.translate(camera.x, camera.y); ctx.scale(zoom, zoom);
     
-    // ФОН КАРТИ ТЕПЕР ЧІТКО СВІТЛО-СІРИЙ (ЧУТЬ-ЧУТЬ СІРІШИЙ ЗА БІЛИЙ)
+    // СВІТЛО-СІРА КАРТА (А НЕ ЧОРНА)
     ctx.fillStyle = "#ededed";
     ctx.fillRect(0, 0, MAP_WIDTH * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE);
     
-    // Червона рамка карти
+    // Червона рамка
     ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 2 / zoom;
     ctx.strokeRect(0, 0, MAP_WIDTH * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE);
 
-    // Контрастна сітка
     if (showGrid && zoom > 0.15) { 
         ctx.strokeStyle = 'rgba(0,0,0,0.07)'; ctx.lineWidth = 0.5 / zoom; ctx.beginPath();
         for (let x = 0; x <= MAP_WIDTH; x += 4) { ctx.moveTo(x * PIXEL_SIZE, 0); ctx.lineTo(x * PIXEL_SIZE, MAP_HEIGHT * PIXEL_SIZE); }
@@ -84,7 +82,7 @@ function redrawCanvas() {
         ctx.stroke();
     }
 
-    // Відображення пікселів
+    // Малюємо пікселі
     for (let key in window.mapData) {
         let coords = key.split('_');
         let x = parseInt(coords[0]), y = parseInt(coords[1]);
@@ -95,7 +93,7 @@ function redrawCanvas() {
     ctx.restore();
 }
 
-// Логіка використання пензля
+// ЛОГІКА КУЛДАУНУ (0.5с ЗА КОЖЕН НОВИЙ ПІКСЕЛЬ)
 function executeBrushPainting(baseX, baseY) {
     if (cooldownTime >= MAX_COOLDOWN) return;
     
@@ -110,7 +108,7 @@ function executeBrushPainting(baseX, baseY) {
             let tx = baseX + dx;
             let ty = baseY + dy;
             if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
-                // Якщо піксель успішно пофарбовано (колір новий), додаємо до лічильника
+                // sendPixel поверне true ТІЛЬКИ якщо колір змінився
                 if (sendPixel(tx, ty, selectedCode)) {
                     actualPaintedCount++;
                 }
@@ -118,21 +116,20 @@ function executeBrushPainting(baseX, baseY) {
         }
     }
 
-    // Нараховуємо кулдаун тільки за реальні зміни
     if (actualPaintedCount > 0) {
         playSoundFX();
         clickCount++;
         const clicksEl = document.getElementById('hudClicks');
         if (clicksEl) clicksEl.innerText = clickCount;
         
-        // ТОЧНИЙ РОЗРАХУНОК: кожен новий піксель коштує 0.5с (5x5 = 25 пікселів * 0.5с = 12.5с)
+        // Додаємо рівно 0.5с за кожен реально зафарбований піксель
         cooldownTime = Math.min(MAX_COOLDOWN, cooldownTime + (actualPaintedCount * 0.5));
         updateCooldownUI();
         redrawCanvas();
     }
 }
 
-// Інші обробники...
+// Завантаження з Firebase
 try {
     if (typeof firebase !== 'undefined' && firebase.database) {
         firebase.database().ref('multiplayer_map').on('value', (snapshot) => {
@@ -142,6 +139,7 @@ try {
     }
 } catch(e) {}
 
+// --- ЗВУК ТА ІНШІ ФУНКЦІЇ ---
 function initAudio() {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -281,8 +279,11 @@ if (canvas) {
         }
         const coords = screenToGrid(e.clientX, e.clientY);
         if (coords.x >= 0 && coords.x < MAP_WIDTH && coords.y >= 0 && coords.y < MAP_HEIGHT) {
-            document.getElementById('hudX').innerText = coords.x; 
-            document.getElementById('hudY').innerText = coords.y;
+            let hX = document.getElementById('hudX');
+            let hY = document.getElementById('hudY');
+            if(hX) hX.innerText = coords.x; 
+            if(hY) hY.innerText = coords.y;
+            
             if (isMouseDown && continuousDrawMode) {
                 executeBrushPainting(coords.x, coords.y);
             }
@@ -295,7 +296,8 @@ if (canvas) {
         let gridX = (mX - camera.x) / zoom, gridY = (mY - camera.y) / zoom;
         zoom = (e.deltaY < 0) ? Math.min(maxZoom, zoom * 1.15) : Math.max(minZoom, zoom / 1.15);
         camera.x = mX - gridX * zoom; camera.y = mY - gridY * zoom;
-        document.getElementById('hudZoom').innerText = Math.round(zoom * 100) + "%"; 
+        let hZ = document.getElementById('hudZoom');
+        if(hZ) hZ.innerText = Math.round(zoom * 100) + "%"; 
         redrawCanvas();
     });
 }
@@ -318,29 +320,40 @@ setInterval(() => {
     }
 }, 1000);
 
-document.getElementById('gridCheckbox').addEventListener('change', (e) => { showGrid = e.target.checked; redrawCanvas(); });
-document.getElementById('volumeSlider').addEventListener('input', (e) => { soundVolume = e.target.value / 100; });
+let gridCheckbox = document.getElementById('gridCheckbox');
+if(gridCheckbox) { gridCheckbox.addEventListener('change', (e) => { showGrid = e.target.checked; redrawCanvas(); }); }
+
+let volSlider = document.getElementById('volumeSlider');
+if(volSlider) { volSlider.addEventListener('input', (e) => { soundVolume = e.target.value / 100; }); }
 
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Shift') {
         continuousDrawMode = !continuousDrawMode;
         const statusEl = document.getElementById('brushStatus');
-        if (continuousDrawMode) { statusEl.innerText = "Пензель (Затискання)"; statusEl.className = "status-on"; }
-        else { statusEl.innerText = "Крапка (Кліки)"; statusEl.className = "status-off"; }
+        if(statusEl) {
+            if (continuousDrawMode) { statusEl.innerText = "Пензель (Затискання)"; statusEl.className = "status-on"; }
+            else { statusEl.innerText = "Крапка (Кліки)"; statusEl.className = "status-off"; }
+        }
     }
 });
 
-document.getElementById('soundFormulaInput').addEventListener('input', (e) => {
-    soundFormula = e.target.value;
-    drawFormulaGraph();
-});
+let formulaInputEl = document.getElementById('soundFormulaInput');
+if(formulaInputEl) {
+    formulaInputEl.addEventListener('input', (e) => {
+        soundFormula = e.target.value;
+        drawFormulaGraph();
+    });
+}
 
-document.getElementById('resetMapBtn').addEventListener('click', () => {
-    if(confirm("Очистити всю карту?")) {
-        try { if (typeof firebase !== 'undefined' && firebase.database) firebase.database().ref('multiplayer_map').remove(); } catch(e) {}
-        window.mapData = {}; redrawCanvas();
-    }
-});
+let resetBtn = document.getElementById('resetMapBtn');
+if(resetBtn) {
+    resetBtn.addEventListener('click', () => {
+        if(confirm("Очистити всю карту?")) {
+            try { if (typeof firebase !== 'undefined' && firebase.database) firebase.database().ref('multiplayer_map').remove(); } catch(e) {}
+            window.mapData = {}; redrawCanvas();
+        }
+    });
+}
 
 setTimeout(() => {
     resizeCanvas();
