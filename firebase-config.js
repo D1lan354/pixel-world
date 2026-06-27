@@ -2,14 +2,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-// 👇 ЗАМІНИ НА СВОЇ ДАНІ З FIREBASE CONSOLE → Project Settings → Your apps
 const firebaseConfig = {
-  apiKey: "ТВІЙ_API_KEY",
-  authDomain: "ТВІЙ_PROJECT.firebaseapp.com",
-  projectId: "ТВІЙ_PROJECT_ID",
-  storageBucket: "ТВІЙ_PROJECT.appspot.com",
-  messagingSenderId: "ТВІЙ_SENDER_ID",
-  appId: "ТВІЙ_APP_ID"
+  apiKey: "AIzaSyDCKmkm7PeB2s2xJ0RLJKRmOLK9kThrAvY",
+  authDomain: "pixeledworld.firebaseapp.com",
+  projectId: "pixeledworld",
+  storageBucket: "pixeledworld.firebasestorage.app",
+  messagingSenderId: "862353757400",
+  appId: "1:862353757400:web:2cfd449f93a9fc3eac73ad",
+  measurementId: "G-R05NR5YMQ6"
 };
 
 const app = initializeApp(firebaseConfig);
