@@ -1,196 +1,370 @@
 import { db, auth } from "./firebase-config.js";
-import {
-  collection, doc, setDoc, onSnapshot, query, limit
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { collection, doc, setDoc, onSnapshot, query, limit, writeBatch } from
+  "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  signOut, onAuthStateChanged } from
+  "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { codeToIndex, indexToHex, codeToHex, nearestCode, generatePaletteSwatches } from "./colors.js";
+import { generateMap } from "./mapgen.js";
 
-// ─── КОЛІРНА СИСТЕМА aaa–zzz ────────────────────────────────────────────────
+// ─── СТАН ────────────────────────────────────────────────────────────────────
 
-export function codeToIndex(code) {
-  const a = code.charCodeAt(0) - 97;
-  const b = code.charCodeAt(1) - 97;
-  const c = code.charCodeAt(2) - 97;
-  return a * 676 + b * 26 + c; // 0 – 17575
-}
+const CANVAS_W = 128;
+const CANVAS_H = 128;
+const BASE_PX  = 6; // базовий розмір пікселя
 
-export function indexToCode(idx) {
-  const a = Math.floor(idx / 676);
-  const b = Math.floor((idx % 676) / 26);
-  const c = idx % 26;
-  return String.fromCharCode(97 + a, 97 + b, 97 + c);
-}
-
-export function indexToHex(idx) {
-  // Рівномірний розподіл по HSL-колу
-  const h = (idx / 15000) * 360;
-  const s = 55 + (idx % 9) * 5;   // 55–95%
-  const l = 38 + (idx % 7) * 4;   // 38–62%
-  return hslToHex(h, s, l);
-}
-
-function hslToHex(h, s, l) {
-  s /= 100; l /= 100;
-  const k = n => (n + h / 30) % 12;
-  const a = s * Math.min(l, 1 - l);
-  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-  const toHex = x => Math.round(x * 255).toString(16).padStart(2, "0");
-  return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
-}
-
-// ─── CANVAS ──────────────────────────────────────────────────────────────────
-
-const CANVAS_SIZE = 64; // 64×64 пікселі (можна збільшити пізніше)
-const PIXEL_SIZE = 10;  // розмір одного пікселя на екрані (px)
-
-let canvas, ctx;
-let selectedCode = "aaa"; // поточний вибраний колір
+let canvas, ctx, offscreen, offCtx;
+let pixelData = {};          // { "x_y": code }
+let selectedCode = "mno";
 let currentUser = null;
+
+// Режими: 'draw' або 'pan'
+let mode = 'draw';
+let drawOnHold = false;      // малювання зажатою мишею
+
+// Вид (pan + zoom)
+let view = { x: 0, y: 0, zoom: 1 };
+let isPanning = false;
+let panStart = { x: 0, y: 0, vx: 0, vy: 0 };
+let isDrawing = false;
+
+// Піпетка
+let eyedropperActive = false;
+
+// ─── ІНІЦІАЛІЗАЦІЯ CANVAS ─────────────────────────────────────────────────────
 
 export function initCanvas() {
   canvas = document.getElementById("pixel-canvas");
-  canvas.width = CANVAS_SIZE * PIXEL_SIZE;
-  canvas.height = CANVAS_SIZE * PIXEL_SIZE;
-  ctx = canvas.getContext("2d");
+  offscreen = document.createElement("canvas");
+  offscreen.width  = CANVAS_W;
+  offscreen.height = CANVAS_H;
+  offCtx = offscreen.getContext("2d");
 
-  canvas.addEventListener("click", onCanvasClick);
-  canvas.addEventListener("mousemove", onCanvasHover);
+  resizeCanvas();
+  window.addEventListener("resize", resizeCanvas);
 
-  // Слухаємо зміни з Firestore у реальному часі
-  const pixelsRef = collection(db, "canvas");
-  onSnapshot(query(pixelsRef, limit(4096)), (snapshot) => {
+  // Малюємо сітку спочатку
+  clearOffscreen();
+
+  canvas.addEventListener("mousedown",  onMouseDown);
+  canvas.addEventListener("mousemove",  onMouseMove);
+  canvas.addEventListener("mouseup",    onMouseUp);
+  canvas.addEventListener("mouseleave", onMouseUp);
+  canvas.addEventListener("wheel",      onWheel, { passive: false });
+  canvas.addEventListener("contextmenu", e => e.preventDefault());
+
+  // Клавіатура
+  window.addEventListener("keydown", e => {
+    if (e.key === "Shift") setMode("pan");
+    if (e.key === "Control" || e.key === "Meta") {
+      eyedropperActive = true;
+      canvas.style.cursor = "crosshair";
+    }
+  });
+  window.addEventListener("keyup", e => {
+    if (e.key === "Shift") setMode("draw");
+    if (e.key === "Control" || e.key === "Meta") {
+      eyedropperActive = false;
+      updateCursor();
+    }
+  });
+
+  // Firebase real-time
+  const q = query(collection(db, "canvas"), limit(20000));
+  onSnapshot(q, snapshot => {
     snapshot.docChanges().forEach(change => {
       if (change.type === "added" || change.type === "modified") {
-        const data = change.doc.data();
-        drawPixel(data.x, data.y, data.colorCode);
+        const d = change.doc.data();
+        pixelData[`${d.x}_${d.y}`] = d.colorCode;
+        drawPixelOffscreen(d.x, d.y, d.colorCode);
       }
     });
+    render();
   });
+
+  centerView();
+  render();
+
+  // Прокидаємо для зум-кнопок з HTML
+  window._pixelView       = view;
+  window._pixelRender     = render;
+  window._pixelCenterView = centerView;
 }
 
-function onCanvasClick(e) {
-  if (!currentUser) {
-    alert("Увійди, щоб малювати!");
+function resizeCanvas() {
+  canvas.width  = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight;
+  render();
+}
+
+function clearOffscreen() {
+  offCtx.fillStyle = "#0a0f1a";
+  offCtx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+}
+
+function drawPixelOffscreen(x, y, code) {
+  offCtx.fillStyle = codeToHex(code);
+  offCtx.fillRect(x, y, 1, 1);
+}
+
+function centerView() {
+  view.zoom = Math.min(canvas.width / CANVAS_W, canvas.height / CANVAS_H) * 0.85;
+  view.x = (canvas.width  - CANVAS_W * view.zoom) / 2;
+  view.y = (canvas.height - CANVAS_H * view.zoom) / 2;
+}
+
+// ─── РЕНДЕР ───────────────────────────────────────────────────────────────────
+
+function render() {
+  if (!ctx) {
+    ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+  }
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Фон
+  ctx.fillStyle = "#0a0f1a";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.save();
+  ctx.translate(view.x, view.y);
+  ctx.scale(view.zoom, view.zoom);
+
+  // Зображення пікселів
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(offscreen, 0, 0);
+
+  // Сітка (тільки якщо зум достатній)
+  if (view.zoom > 4) {
+    ctx.strokeStyle = "rgba(255,255,255,0.06)";
+    ctx.lineWidth = 1 / view.zoom;
+    for (let x = 0; x <= CANVAS_W; x++) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CANVAS_H); ctx.stroke();
+    }
+    for (let y = 0; y <= CANVAS_H; y++) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_W, y); ctx.stroke();
+    }
+  }
+
+  ctx.restore();
+}
+
+// ─── КООРДИНАТИ ───────────────────────────────────────────────────────────────
+
+function screenToPixel(sx, sy) {
+  return {
+    x: Math.floor((sx - view.x) / view.zoom),
+    y: Math.floor((sy - view.y) / view.zoom)
+  };
+}
+
+function inBounds(x, y) {
+  return x >= 0 && x < CANVAS_W && y >= 0 && y < CANVAS_H;
+}
+
+// ─── ПОДІЇ МИШІ ───────────────────────────────────────────────────────────────
+
+function onMouseDown(e) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left;
+  const sy = e.clientY - rect.top;
+  const { x, y } = screenToPixel(sx, sy);
+
+  if (e.button === 1 || mode === "pan") {
+    isPanning = true;
+    panStart = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
+    canvas.style.cursor = "grabbing";
     return;
   }
+
+  if (eyedropperActive && inBounds(x, y)) {
+    pickColor(x, y);
+    return;
+  }
+
+  if (mode === "draw") {
+    isDrawing = true;
+    if (inBounds(x, y)) tryPlace(x, y);
+  }
+}
+
+function onMouseMove(e) {
   const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const x = Math.floor(((e.clientX - rect.left) * scaleX) / PIXEL_SIZE);
-  const y = Math.floor(((e.clientY - rect.top) * scaleY) / PIXEL_SIZE);
-  placePixel(x, y, selectedCode);
+  const sx = e.clientX - rect.left;
+  const sy = e.clientY - rect.top;
+  const { x, y } = screenToPixel(sx, sy);
+
+  // Оновлення координат у хедері
+  const coordEl = document.getElementById("coords");
+  if (coordEl) {
+    coordEl.textContent = inBounds(x,y) ? `x:${x} y:${y} [${selectedCode}]` : "";
+  }
+
+  if (isPanning) {
+    view.x = panStart.vx + (e.clientX - panStart.x);
+    view.y = panStart.vy + (e.clientY - panStart.y);
+    render();
+    return;
+  }
+
+  if (isDrawing && drawOnHold && mode === "draw" && inBounds(x, y)) {
+    tryPlace(x, y);
+  }
 }
 
-function onCanvasHover(e) {
+function onMouseUp(e) {
+  isPanning = false;
+  isDrawing = false;
+  updateCursor();
+}
+
+function onWheel(e) {
+  e.preventDefault();
   const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const x = Math.floor(((e.clientX - rect.left) * scaleX) / PIXEL_SIZE);
-  const y = Math.floor(((e.clientY - rect.top) * scaleY) / PIXEL_SIZE);
-  const scaleY = canvas.height / rect.height;
-  document.getElementById("coords").textContent = `x:${x} y:${y} → ${selectedCode}`;
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  const newZoom = Math.max(0.5, Math.min(40, view.zoom * factor));
+
+  // Зум відносно позиції миші
+  view.x = mx - (mx - view.x) * (newZoom / view.zoom);
+  view.y = my - (my - view.y) * (newZoom / view.zoom);
+  view.zoom = newZoom;
+  render();
 }
 
-function drawPixel(x, y, code) {
-  ctx.fillStyle = indexToHex(codeToIndex(code));
-  ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+// ─── МАЛЮВАННЯ ────────────────────────────────────────────────────────────────
 
-  // Тонка сітка
-  ctx.strokeStyle = "rgba(0,0,0,0.08)";
-  ctx.strokeRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
-}
+let lastPlaced = "";
+async function tryPlace(x, y) {
+  const key = `${x}_${y}`;
+  if (lastPlaced === key) return; // не перемальовувати той самий
+  lastPlaced = key;
+  if (!currentUser) { showAuthPrompt(); return; }
 
-// ─── FIREBASE: ЗАПИС ПІКСЕЛЯ ─────────────────────────────────────────────────
+  pixelData[key] = selectedCode;
+  drawPixelOffscreen(x, y, selectedCode);
+  render();
 
-async function placePixel(x, y, colorCode) {
-  const id = `${x}_${y}`;
-  await setDoc(doc(db, "canvas", id), {
-    x,
-    y,
-    colorCode,
+  await setDoc(doc(db, "canvas", key), {
+    x, y, colorCode: selectedCode,
     userId: currentUser.uid,
     userEmail: currentUser.email,
     placedAt: Date.now()
   });
-  // Локальний рендер одразу (без чекання Firestore)
-  drawPixel(x, y, colorCode);
 }
 
-// ─── ВИБІР КОЛЬОРУ ───────────────────────────────────────────────────────────
-
-export function buildPalette(containerId, count = 125) {
-  const container = document.getElementById(containerId);
-  for (let i = 0; i < count; i++) {
-    // Рівномірна вибірка з 15000 кольорів
-    const idx = Math.floor((i / count) * 15000);
-    const code = indexToCode(idx);
-    const hex = indexToHex(idx);
-
-    const swatch = document.createElement("div");
-    swatch.className = "swatch";
-    swatch.style.backgroundColor = hex;
-    swatch.title = code;
-    swatch.addEventListener("click", () => {
-      selectedCode = code;
-      document.getElementById("selected-color").style.backgroundColor = hex;
-      document.getElementById("selected-code").textContent = code;
-    });
-    container.appendChild(swatch);
+// Піпетка — підбирає колір з полотна
+function pickColor(x, y) {
+  const key = `${x}_${y}`;
+  const code = pixelData[key];
+  if (code) {
+    setSelectedCode(code);
+  } else {
+    // Читаємо пікселі з offscreen canvas
+    const px = offCtx.getImageData(x, y, 1, 1).data;
+    const code2 = nearestCode(px[0], px[1], px[2]);
+    setSelectedCode(code2);
   }
 }
 
-// ─── AUDIO ENGINE (Web Audio API) ─────────────────────────────────────────────
+// ─── ГЕНЕРАТОР КАРТИ ─────────────────────────────────────────────────────────
 
-let audioCtx = null;
+export async function generateAndApplyMap(seed) {
+  const { map } = generateMap(CANVAS_W, CANVAS_H, seed);
+  const batch = writeBatch(db);
 
-export function playFormula(formulaStr, durationSec = 1.5) {
-  if (!audioCtx) audioCtx = new AudioContext();
+  clearOffscreen();
 
-  const sr = audioCtx.sampleRate;
-  const buffer = audioCtx.createBuffer(1, sr * durationSec, sr);
-  const data = buffer.getChannelData(0);
+  for (let y = 0; y < CANVAS_H; y++) {
+    for (let x = 0; x < CANVAS_W; x++) {
+      const code = map[y * CANVAS_W + x];
+      const key = `${x}_${y}`;
+      pixelData[key] = code;
+      drawPixelOffscreen(x, y, code);
 
-  let fn;
-  try {
-    // formulaStr — формула від користувача, наприклад:
-    // "Math.sin(t * 440 * 2 * Math.PI) * Math.exp(-t * 3)"
-    fn = new Function("t", `return ${formulaStr}`);
-  } catch {
-    alert("Помилка у формулі!");
-    return;
+      const ref = doc(db, "canvas", key);
+      batch.set(ref, {
+        x, y, colorCode: code,
+        userId: currentUser?.uid || "system",
+        userEmail: currentUser?.email || "mapgen",
+        placedAt: Date.now()
+      });
+    }
   }
 
-  for (let i = 0; i < data.length; i++) {
-    const t = i / sr;
-    const val = fn(t);
-    data[i] = Math.max(-1, Math.min(1, isNaN(val) ? 0 : val));
+  render();
+
+  // Firebase дозволяє max 500 записів за раз у batch
+  // Ділимо на чанки
+  const total = CANVAS_W * CANVAS_H;
+  const CHUNK = 400;
+  for (let i = 0; i < total; i += CHUNK) {
+    const b = writeBatch(db);
+    for (let j = i; j < Math.min(i + CHUNK, total); j++) {
+      const px = j % CANVAS_W, py = Math.floor(j / CANVAS_W);
+      const code = map[j];
+      b.set(doc(db, "canvas", `${px}_${py}`), {
+        x: px, y: py, colorCode: code,
+        userId: currentUser?.uid || "system",
+        userEmail: "mapgen",
+        placedAt: Date.now()
+      });
+    }
+    await b.commit();
   }
 
-  const source = audioCtx.createBufferSource();
-  source.buffer = buffer;
-  source.connect(audioCtx.destination);
-  source.start();
+  document.getElementById("map-status").textContent = "Карта збережена!";
+  setTimeout(() => { document.getElementById("map-status").textContent = ""; }, 3000);
 }
 
-// ─── АУТЕНТИФІКАЦІЯ ───────────────────────────────────────────────────────────
+// ─── РЕЖИМИ ───────────────────────────────────────────────────────────────────
+
+export function setMode(m) {
+  mode = m;
+  const drawBtn = document.getElementById("mode-draw");
+  const panBtn  = document.getElementById("mode-pan");
+  if (drawBtn) drawBtn.classList.toggle("active", m === "draw");
+  if (panBtn)  panBtn.classList.toggle("active", m === "pan");
+  updateCursor();
+}
+
+export function toggleDrawOnHold(val) {
+  drawOnHold = val;
+}
+
+function updateCursor() {
+  if (eyedropperActive) { canvas.style.cursor = "crosshair"; return; }
+  canvas.style.cursor = mode === "pan" ? "grab" : "cell";
+}
+
+export function setSelectedCode(code) {
+  selectedCode = code;
+  const hex = codeToHex(code);
+  const el = document.getElementById("selected-color");
+  const cd = document.getElementById("selected-code");
+  if (el) el.style.backgroundColor = hex;
+  if (cd) cd.textContent = code;
+}
+
+// ─── AUTH ────────────────────────────────────────────────────────────────────
 
 export function initAuth() {
   onAuthStateChanged(auth, user => {
     currentUser = user;
-    const statusEl = document.getElementById("auth-status");
-    const formEl = document.getElementById("auth-form");
+    const status = document.getElementById("auth-status");
+    const form   = document.getElementById("auth-form");
+    const logoutBtn = document.getElementById("logout-btn");
 
     if (user) {
-      statusEl.textContent = `✓ ${user.email}`;
-      formEl.style.display = "none";
-      document.getElementById("logout-btn").style.display = "inline-block";
+      if (status) status.textContent = `✓ ${user.email}`;
+      if (form)   form.style.display = "none";
+      if (logoutBtn) logoutBtn.style.display = "inline-block";
     } else {
-      statusEl.textContent = "Не увійшов";
-      formEl.style.display = "flex";
-      document.getElementById("logout-btn").style.display = "none";
+      if (status) status.textContent = "Не увійшов";
+      if (form)   form.style.display = "flex";
+      if (logoutBtn) logoutBtn.style.display = "none";
     }
   });
 }
@@ -198,19 +372,64 @@ export function initAuth() {
 export async function register(email, password) {
   try {
     await createUserWithEmailAndPassword(auth, email, password);
-  } catch (e) {
-    alert("Помилка реєстрації: " + e.message);
+  } catch(e) {
+    showError("Реєстрація: " + friendlyError(e.code));
   }
 }
 
 export async function login(email, password) {
   try {
     await signInWithEmailAndPassword(auth, email, password);
-  } catch (e) {
-    alert("Помилка входу: " + e.message);
+  } catch(e) {
+    showError("Вхід: " + friendlyError(e.code));
   }
 }
 
 export async function logout() {
   await signOut(auth);
+}
+
+function friendlyError(code) {
+  const map = {
+    "auth/network-request-failed": "Немає з'єднання з Firebase. Перевір firebaseConfig у firebase-config.js та авторизовані домени у Firebase Console → Authentication → Settings → Authorized domains",
+    "auth/invalid-email": "Невірний формат email",
+    "auth/weak-password": "Пароль мінімум 6 символів",
+    "auth/email-already-in-use": "Цей email вже зареєстровано",
+    "auth/user-not-found": "Користувач не знайдений",
+    "auth/wrong-password": "Невірний пароль",
+  };
+  return map[code] || code;
+}
+
+function showError(msg) {
+  const el = document.getElementById("auth-error");
+  if (el) { el.textContent = msg; el.style.display = "block"; }
+  else alert(msg);
+}
+
+function showAuthPrompt() {
+  const el = document.getElementById("auth-error");
+  if (el) { el.textContent = "Увійди щоб малювати!"; el.style.display = "block"; }
+}
+
+// ─── AUDIO ────────────────────────────────────────────────────────────────────
+
+let audioCtx = null;
+export function playFormula(formulaStr, duration = 1.5) {
+  if (!audioCtx) audioCtx = new AudioContext();
+  const sr = audioCtx.sampleRate;
+  const buf = audioCtx.createBuffer(1, sr * duration, sr);
+  const data = buf.getChannelData(0);
+  let fn;
+  try { fn = new Function("t", `"use strict"; return ${formulaStr}`); }
+  catch { showError("Помилка у формулі!"); return; }
+  for (let i = 0; i < data.length; i++) {
+    const t = i / sr;
+    try { const v = fn(t); data[i] = isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0; }
+    catch { data[i] = 0; }
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  src.connect(audioCtx.destination);
+  src.start();
 }

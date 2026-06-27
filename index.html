@@ -1,217 +1,317 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pixel Universe</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Universe</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    :root {
-      --bg: #0e0e12;
-      --surface: #1a1a22;
-      --border: #2e2e3a;
-      --text: #e8e8f0;
-      --muted: #7a7a90;
-      --accent: #7c6af7;
-    }
+:root {
+  --bg:       #0b0d14;
+  --surface:  #13151f;
+  --surface2: #1c1f2e;
+  --border:   #2a2d3e;
+  --text:     #dde0f0;
+  --muted:    #6b6f88;
+  --accent:   #7c6af7;
+  --accent2:  #5b9cf6;
+  --danger:   #e05555;
+  --success:  #4caf82;
+}
 
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Courier New', monospace;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
-    }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+}
 
-    /* ─── HEADER ─── */
-    header {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 10px 20px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
+/* ─── HEADER ─────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 10;
+}
 
-    header h1 {
-      font-size: 16px;
-      letter-spacing: 3px;
-      color: var(--accent);
-      text-transform: uppercase;
-    }
+header h1 {
+  font-size: 13px;
+  letter-spacing: 4px;
+  color: var(--accent);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
 
-    #auth-status {
-      margin-left: auto;
-      font-size: 12px;
-      color: var(--muted);
-    }
+#coords {
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 140px;
+}
 
-    #auth-form {
-      display: flex;
-      gap: 6px;
-    }
+.spacer { flex: 1; }
 
-    #auth-form input {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 4px 8px;
-      font-size: 12px;
-      font-family: inherit;
-      border-radius: 4px;
-      width: 130px;
-    }
+#auth-status { font-size: 11px; color: var(--success); }
 
-    #auth-form input:focus { outline: none; border-color: var(--accent); }
+#auth-form { display: flex; gap: 5px; }
+#auth-form input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  border-radius: 4px;
+  width: 120px;
+}
+#auth-form input:focus { outline: none; border-color: var(--accent); }
 
-    button {
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      padding: 4px 12px;
-      font-size: 12px;
-      font-family: inherit;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: opacity .15s;
-    }
+#auth-error {
+  display: none;
+  font-size: 11px;
+  color: var(--danger);
+  max-width: 320px;
+  line-height: 1.4;
+}
 
-    button:hover { opacity: .85; }
+btn, button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 4px 11px;
+  font: inherit;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity .15s;
+  white-space: nowrap;
+}
+button:hover { opacity: .82; }
+button.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+#logout-btn { display: none; }
 
-    button.ghost {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--muted);
-    }
+/* ─── MAIN LAYOUT ────────────────────────────────────── */
+main { display: flex; flex: 1; overflow: hidden; }
 
-    #logout-btn { display: none; }
+/* ─── SIDEBAR ────────────────────────────────────────── */
+aside {
+  width: 200px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
 
-    /* ─── LAYOUT ─── */
-    main {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-    }
+.section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
 
-    /* ─── SIDEBAR ─── */
-    aside {
-      width: 220px;
-      background: var(--surface);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      padding: 12px;
-      gap: 16px;
-      overflow-y: auto;
-      flex-shrink: 0;
-    }
+.section-title {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
 
-    aside h2 {
-      font-size: 10px;
-      letter-spacing: 2px;
-      color: var(--muted);
-      text-transform: uppercase;
-    }
+/* Вибраний колір */
+#selected-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+#selected-color {
+  width: 30px; height: 30px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: #888;
+  cursor: crosshair;
+  flex-shrink: 0;
+}
+#selected-code {
+  font-size: 20px;
+  letter-spacing: 3px;
+  color: var(--text);
+}
 
-    #selected-preview {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+/* Режими */
+.mode-btns { display: flex; gap: 5px; margin-bottom: 6px; }
+.mode-btns button { flex: 1; font-size: 10px; padding: 4px 4px; }
 
-    #selected-color {
-      width: 28px;
-      height: 28px;
-      border-radius: 4px;
-      border: 1px solid var(--border);
-      background: #aaa;
-      flex-shrink: 0;
-    }
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
 
-    #selected-code {
-      font-size: 18px;
-      letter-spacing: 2px;
-      color: var(--text);
-    }
+/* Toggle switch */
+.toggle { position:relative; display:inline-block; width:30px; height:16px; }
+.toggle input { opacity:0; width:0; height:0; }
+.slider-sw {
+  position:absolute; cursor:pointer; inset:0;
+  background:var(--border); border-radius:8px; transition:.2s;
+}
+.slider-sw::before {
+  content:""; position:absolute;
+  width:12px; height:12px; left:2px; bottom:2px;
+  background:#fff; border-radius:50%; transition:.2s;
+}
+.toggle input:checked + .slider-sw { background:var(--accent); }
+.toggle input:checked + .slider-sw::before { transform:translateX(14px); }
 
-    #palette {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 3px;
-    }
+/* Палітра */
+.palette-hint { font-size: 10px; color: var(--muted); line-height: 1.4; }
+#palette-toggle {
+  width: 100%;
+  margin-bottom: 8px;
+  font-size: 10px;
+  padding: 4px;
+}
 
-    .swatch {
-      width: 16px;
-      height: 16px;
-      border-radius: 3px;
-      cursor: pointer;
-      transition: transform .1s;
-    }
-    .swatch:hover { transform: scale(1.4); z-index: 10; position: relative; }
+.swatch {
+  width: 16px; height: 16px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: transform .1s;
+  flex-shrink: 0;
+}
+.swatch:hover { transform: scale(1.5); z-index: 20; position: relative; }
 
-    /* ─── AUDIO ─── */
-    #audio-formula {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      font-family: 'Courier New', monospace;
-      font-size: 11px;
-      padding: 6px;
-      resize: vertical;
-      border-radius: 4px;
-      width: 100%;
-      min-height: 56px;
-    }
-    #audio-formula:focus { outline: none; border-color: var(--accent); }
+/* Audio */
+#audio-formula {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 10px;
+  padding: 5px;
+  border-radius: 4px;
+  resize: vertical;
+  min-height: 50px;
+  margin: 5px 0;
+}
+#audio-formula:focus { outline: none; border-color: var(--accent); }
 
-    .hint {
-      font-size: 10px;
-      color: var(--muted);
-      line-height: 1.5;
-    }
+/* Карта */
+.seed-row { display:flex; gap:5px; margin-top:5px; }
+.seed-row input {
+  flex:1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 6px;
+  font: inherit;
+  border-radius: 4px;
+}
+.seed-row input:focus { outline: none; border-color: var(--accent2); }
+#map-status { font-size: 10px; color: var(--success); margin-top: 4px; min-height: 14px; }
 
-    /* ─── CANVAS AREA ─── */
-    .canvas-wrapper {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      overflow: auto;
-      padding: 20px;
-    }
+/* Hint */
+.key-hint {
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.7;
+  padding: 8px 12px;
+}
+kbd {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 10px;
+}
 
-    #pixel-canvas {
-      image-rendering: pixelated;
-      cursor: crosshair;
-      border: 1px solid var(--border);
-      max-width: 100%;
-      max-height: calc(100vh - 120px);
-    }
+/* ─── CANVAS ─────────────────────────────────────────── */
+.canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #07090f;
+}
 
-    #coords {
-      font-size: 11px;
-      color: var(--muted);
-      letter-spacing: 1px;
-    }
-  </style>
+#pixel-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  cursor: cell;
+}
+
+/* Zoom controls */
+.zoom-controls {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  z-index: 5;
+}
+.zoom-controls button {
+  width: 30px; height: 30px;
+  padding: 0;
+  font-size: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+}
+
+/* Reset view */
+#reset-view {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  z-index: 5;
+  font-size: 10px;
+  padding: 5px 9px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 6px;
+}
+</style>
 </head>
 <body>
 
+<!-- ─── HEADER ─────────────────────────────────────────── -->
 <header>
   <h1>Pixel Universe</h1>
-  <span id="coords">x:— y:—</span>
+  <span id="coords"></span>
 
-  <div id="auth-status">Не увійшов</div>
+  <div class="spacer"></div>
+
+  <span id="auth-status"></span>
+  <span id="auth-error"></span>
 
   <div id="auth-form">
-    <input type="email" id="email-input" placeholder="email">
-    <input type="password" id="pass-input" placeholder="пароль">
+    <input type="email"    id="email-input" placeholder="email">
+    <input type="password" id="pass-input"  placeholder="пароль">
     <button onclick="handleLogin()">Увійти</button>
     <button class="ghost" onclick="handleRegister()">Реєстрація</button>
   </div>
@@ -219,67 +319,148 @@
   <button id="logout-btn" class="ghost" onclick="handleLogout()">Вийти</button>
 </header>
 
+<!-- ─── MAIN ──────────────────────────────────────────── -->
 <main>
+
+  <!-- SIDEBAR -->
   <aside>
+
     <!-- Вибраний колір -->
-    <div>
-      <h2>Колір</h2>
-      <div id="selected-preview" style="margin-top:8px">
+    <div class="section">
+      <div class="section-title">Колір</div>
+      <div id="selected-preview">
         <div id="selected-color"></div>
-        <span id="selected-code">aaa</span>
+        <span id="selected-code">mno</span>
+      </div>
+    </div>
+
+    <!-- Режим -->
+    <div class="section">
+      <div class="section-title">Режим</div>
+      <div class="mode-btns">
+        <button id="mode-draw" class="active" onclick="handleSetMode('draw')">✏️ Малювати</button>
+        <button id="mode-pan"  class="ghost"  onclick="handleSetMode('pan')">✋ Рухати</button>
+      </div>
+      <div class="toggle-row">
+        <span>Малювати затиском</span>
+        <label class="toggle">
+          <input type="checkbox" id="draw-hold-toggle" onchange="handleDrawHold(this.checked)">
+          <span class="slider-sw"></span>
+        </label>
       </div>
     </div>
 
     <!-- Палітра -->
-    <div>
-      <h2>Палітра</h2>
-      <div id="palette" style="margin-top:8px"></div>
+    <div class="section">
+      <div class="section-title">Палітра</div>
+      <button id="palette-toggle">↔ Свотчі</button>
+
+      <!-- Color wheel -->
+      <div id="palette-wheel-wrap"></div>
+      <!-- Swatches -->
+      <div id="palette-swatches-wrap" style="display:none"></div>
     </div>
 
-    <!-- Audio engine -->
-    <div>
-      <h2>Звук (формула)</h2>
-      <textarea id="audio-formula" style="margin-top:8px">Math.sin(t * 440 * 2 * Math.PI) * Math.exp(-t * 3)</textarea>
-      <p class="hint" style="margin:4px 0">t = час (сек), результат −1..1</p>
-      <button onclick="handlePlayAudio()" style="width:100%;margin-top:4px">▶ Відтворити</button>
+    <!-- Генератор карти -->
+    <div class="section">
+      <div class="section-title">Генератор карти</div>
+      <div class="seed-row">
+        <input type="number" id="map-seed" placeholder="seed (авто)" min="0">
+        <button onclick="handleGenMap()" style="background:var(--accent2)">🌍 Генерувати</button>
+      </div>
+      <p class="palette-hint" style="margin-top:5px">4–6 континентів + океан</p>
+      <div id="map-status"></div>
     </div>
+
+    <!-- Звук -->
+    <div class="section">
+      <div class="section-title">Звук (формула)</div>
+      <textarea id="audio-formula">Math.sin(t * 440 * 2 * Math.PI) * Math.exp(-t * 3)</textarea>
+      <p class="palette-hint">t = час (сек), повертай −1..1</p>
+      <button onclick="handlePlayAudio()" style="width:100%;margin-top:5px">▶ Відтворити</button>
+    </div>
+
+    <!-- Підказки -->
+    <div class="key-hint">
+      <kbd>Shift</kbd> — режим руху<br>
+      <kbd>Ctrl</kbd> + клік — піпетка<br>
+      <kbd>Scroll</kbd> — зум<br>
+      ПКМ — (резерв)
+    </div>
+
   </aside>
 
-  <div class="canvas-wrapper">
+  <!-- CANVAS -->
+  <div class="canvas-wrap">
     <canvas id="pixel-canvas"></canvas>
-    <span id="coords" style="margin-top:4px"></span>
+
+    <div class="zoom-controls">
+      <button onclick="handleZoom(1.25)">+</button>
+      <button onclick="handleZoom(0.8)">−</button>
+    </div>
+
+    <button id="reset-view" onclick="handleResetView()">⌂ Скинути вид</button>
   </div>
+
 </main>
 
 <script type="module">
-  import { initCanvas, initAuth, buildPalette, playFormula, register, login, logout } from "./app.js";
+import { initCanvas, initAuth, setMode, toggleDrawOnHold,
+         setSelectedCode, playFormula, register, login, logout,
+         generateAndApplyMap } from "./app.js";
+import { initPalette } from "./palette.js";
 
-  // Ініціалізація
-  initAuth();
-  initCanvas();
-  buildPalette("palette", 125);
+// Ініціалізація
+initAuth();
+initCanvas();
+initPalette();
 
-  // Прив'язуємо кнопки до глобального window (бо onclick="..." у HTML не бачить ES модулів)
-  window.handleLogin = async () => {
-    const email = document.getElementById("email-input").value;
-    const pass = document.getElementById("pass-input").value;
-    await login(email, pass);
-  };
+// Прив'язка кнопок до window (бо onclick-атрибути не бачать ES-модулів)
+window.handleLogin    = async () => login(
+  document.getElementById("email-input").value,
+  document.getElementById("pass-input").value
+);
+window.handleRegister = async () => register(
+  document.getElementById("email-input").value,
+  document.getElementById("pass-input").value
+);
+window.handleLogout   = () => logout();
 
-  window.handleRegister = async () => {
-    const email = document.getElementById("email-input").value;
-    const pass = document.getElementById("pass-input").value;
-    await register(email, pass);
-  };
+window.handleSetMode  = (m) => setMode(m);
+window.handleDrawHold = (v) => toggleDrawOnHold(v);
 
-  window.handleLogout = async () => {
-    await logout();
-  };
+window.handlePlayAudio = () => playFormula(
+  document.getElementById("audio-formula").value
+);
 
-  window.handlePlayAudio = () => {
-    const formula = document.getElementById("audio-formula").value;
-    playFormula(formula);
-  };
+window.handleGenMap = () => {
+  const seedEl = document.getElementById("map-seed");
+  const seed = seedEl.value ? parseInt(seedEl.value) : Math.random() * 99999 | 0;
+  seedEl.value = seed;
+  document.getElementById("map-status").textContent = "Генерую...";
+  // setTimeout щоб UI оновився перед важким розрахунком
+  setTimeout(() => generateAndApplyMap(seed), 50);
+};
+
+window.handleZoom = (factor) => {
+  // Зум до центру canvas
+  const canvas = document.getElementById("pixel-canvas");
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  // Імпортуємо view через глобал (простий спосіб без event bus)
+  if (window._pixelView) {
+    const v = window._pixelView;
+    const newZoom = Math.max(0.5, Math.min(40, v.zoom * factor));
+    v.x = cx - (cx - v.x) * (newZoom / v.zoom);
+    v.y = cy - (cy - v.y) * (newZoom / v.zoom);
+    v.zoom = newZoom;
+    window._pixelRender && window._pixelRender();
+  }
+};
+
+window.handleResetView = () => {
+  window._pixelCenterView && window._pixelCenterView();
+  window._pixelRender && window._pixelRender();
+};
 </script>
 
 </body>
