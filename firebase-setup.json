@@ -1,0 +1,62 @@
+{
+  "_comment": "Це правила безпеки для Firestore. Встав їх у Firebase Console → Firestore → Rules",
+
+  "rules": "paste the text below into Firebase Console → Firestore Database → Rules tab",
+
+  "firestore_rules_text": "
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Пікселі: читати може кожен, писати — тільки авторизовані
+    match /canvas/{pixelId} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Профілі користувачів: читати своє може тільки власник
+    match /users/{userId} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+    }
+  }
+}
+  ",
+
+  "structure": {
+    "collection: canvas": {
+      "document id": "x_y (наприклад 12_34)",
+      "fields": {
+        "x": "number",
+        "y": "number",
+        "colorCode": "string (aaa–zzz)",
+        "userId": "string (UID з Firebase Auth)",
+        "userEmail": "string",
+        "placedAt": "number (timestamp)"
+      }
+    },
+    "collection: users": {
+      "document id": "UID користувача",
+      "fields": {
+        "email": "string",
+        "createdAt": "number",
+        "pixelsPlaced": "number"
+      }
+    }
+  },
+
+  "setup_steps": [
+    "1. Відкрий https://console.firebase.google.com",
+    "2. Створи новий проєкт (або відкрий існуючий)",
+    "3. Build → Firestore Database → Create database → Start in test mode",
+    "4. Build → Authentication → Get started → Email/Password → Enable",
+    "5. Project Settings (⚙) → Your apps → Add web app (</>)",
+    "6. Скопіюй firebaseConfig і встав у firebase-config.js",
+    "7. Firestore → Rules → вкопіюй текст з firestore_rules_text вище → Publish",
+    "8. Відкрий index.html через живий сервер (Live Server у VSCode або npx serve .)"
+  ],
+
+  "local_server_command": "npx serve . --port 3000",
+  "note": "Firebase SDK завантажується з CDN, тому npm не потрібен. Тільки живий сервер (не file://)"
+}
