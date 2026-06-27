@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pixel Universe</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0e0e12;
+      --surface: #1a1a22;
+      --border: #2e2e3a;
+      --text: #e8e8f0;
+      --muted: #7a7a90;
+      --accent: #7c6af7;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ─── HEADER ─── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 16px;
+      letter-spacing: 3px;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    #auth-status {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    #auth-form {
+      display: flex;
+      gap: 6px;
+    }
+
+    #auth-form input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 4px 8px;
+      font-size: 12px;
+      font-family: inherit;
+      border-radius: 4px;
+      width: 130px;
+    }
+
+    #auth-form input:focus { outline: none; border-color: var(--accent); }
+
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-family: inherit;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+
+    button:hover { opacity: .85; }
+
+    button.ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    #logout-btn { display: none; }
+
+    /* ─── LAYOUT ─── */
+    main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ─── SIDEBAR ─── */
+    aside {
+      width: 220px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      gap: 16px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    aside h2 {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    #selected-preview {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #selected-color {
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: #aaa;
+      flex-shrink: 0;
+    }
+
+    #selected-code {
+      font-size: 18px;
+      letter-spacing: 2px;
+      color: var(--text);
+    }
+
+    #palette {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+    }
+
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: transform .1s;
+    }
+    .swatch:hover { transform: scale(1.4); z-index: 10; position: relative; }
+
+    /* ─── AUDIO ─── */
+    #audio-formula {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      padding: 6px;
+      resize: vertical;
+      border-radius: 4px;
+      width: 100%;
+      min-height: 56px;
+    }
+    #audio-formula:focus { outline: none; border-color: var(--accent); }
+
+    .hint {
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ─── CANVAS AREA ─── */
+    .canvas-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      overflow: auto;
+      padding: 20px;
+    }
+
+    #pixel-canvas {
+      image-rendering: pixelated;
+      cursor: crosshair;
+      border: 1px solid var(--border);
+      max-width: 100%;
+      max-height: calc(100vh - 120px);
+    }
+
+    #coords {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Pixel Universe</h1>
+  <span id="coords">x:— y:—</span>
+
+  <div id="auth-status">Не увійшов</div>
+
+  <div id="auth-form">
+    <input type="email" id="email-input" placeholder="email">
+    <input type="password" id="pass-input" placeholder="пароль">
+    <button onclick="handleLogin()">Увійти</button>
+    <button class="ghost" onclick="handleRegister()">Реєстрація</button>
+  </div>
+
+  <button id="logout-btn" class="ghost" onclick="handleLogout()">Вийти</button>
+</header>
+
+<main>
+  <aside>
+    <!-- Вибраний колір -->
+    <div>
+      <h2>Колір</h2>
+      <div id="selected-preview" style="margin-top:8px">
+        <div id="selected-color"></div>
+        <span id="selected-code">aaa</span>
+      </div>
+    </div>
+
+    <!-- Палітра -->
+    <div>
+      <h2>Палітра</h2>
+      <div id="palette" style="margin-top:8px"></div>
+    </div>
+
+    <!-- Audio engine -->
+    <div>
+      <h2>Звук (формула)</h2>
+      <textarea id="audio-formula" style="margin-top:8px">Math.sin(t * 440 * 2 * Math.PI) * Math.exp(-t * 3)</textarea>
+      <p class="hint" style="margin:4px 0">t = час (сек), результат −1..1</p>
+      <button onclick="handlePlayAudio()" style="width:100%;margin-top:4px">▶ Відтворити</button>
+    </div>
+  </aside>
+
+  <div class="canvas-wrapper">
+    <canvas id="pixel-canvas"></canvas>
+    <span id="coords" style="margin-top:4px"></span>
+  </div>
+</main>
+
+<script type="module">
+  import { initCanvas, initAuth, buildPalette, playFormula, register, login, logout } from "./app.js";
+
+  // Ініціалізація
+  initAuth();
+  initCanvas();
+  buildPalette("palette", 125);
+
+  // Прив'язуємо кнопки до глобального window (бо onclick="..." у HTML не бачить ES модулів)
+  window.handleLogin = async () => {
+    const email = document.getElementById("email-input").value;
+    const pass = document.getElementById("pass-input").value;
+    await login(email, pass);
+  };
+
+  window.handleRegister = async () => {
+    const email = document.getElementById("email-input").value;
+    const pass = document.getElementById("pass-input").value;
+    await register(email, pass);
+  };
+
+  window.handleLogout = async () => {
+    await logout();
+  };
+
+  window.handlePlayAudio = () => {
+    const formula = document.getElementById("audio-formula").value;
+    playFormula(formula);
+  };
+</script>
+
+</body>
+</html>
