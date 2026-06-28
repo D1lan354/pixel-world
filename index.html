@@ -216,6 +216,8 @@ kbd{background:var(--surface2);border:1px solid var(--border);border-radius:3px;
 <main>
 <aside>
 
+  
+
   <!-- Вибраний колір + нік + розмір пікселя -->
   <div class="sec">
     <div class="sec-title">Колір</div>
@@ -293,6 +295,18 @@ kbd{background:var(--surface2);border:1px solid var(--border);border-radius:3px;
 // ════════════════════════════════════════════════════════
 //  FIREBASE
 // ════════════════════════════════════════════════════════
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDCKmkm7PeB2s2xJ0RLJKRmOLK9kThrAvY",
+  authDomain: "pixeledworld.firebaseapp.com",
+  databaseURL: "https://pixeledworld-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "pixeledworld",
+  storageBucket: "pixeledworld.firebasestorage.app",
+  messagingSenderId: "862353757400",
+  appId: "1:862353757400:web:2cfd449f93a9fc3eac73ad",
+  measurementId: "G-R05NR5YMQ6"
+};
+  
 import { initializeApp }                              from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, doc, setDoc,
          onSnapshot, query, limit, writeBatch,
