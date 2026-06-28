@@ -4,228 +4,210 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pixel Universe</title>
+<script src="palette.js"></script>
+<script src="sounds.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-
 :root{
-  --bg:#0b0d14;--surface:#13151f;--surface2:#1c1f2e;--border:#2a2d3e;
-  --text:#dde0f0;--muted:#6b6f88;--accent:#7c6af7;--accent2:#5b9cf6;
-  --danger:#e05555;--success:#4caf82;--warn:#f0a540;
+  --bg:#0b0d14;--sf:#13151f;--s2:#1c1f2e;--bd:#2a2d3e;
+  --tx:#dde0f0;--mu:#6b6f88;--ac:#7c6af7;--ac2:#5b9cf6;
+  --dn:#e05555;--ok:#4caf82;
 }
-body{background:var(--bg);color:var(--text);font-family:'Courier New',monospace;font-size:12px;display:flex;flex-direction:column;height:100vh;overflow:hidden;user-select:none}
+body{background:var(--bg);color:var(--tx);font-family:'Courier New',monospace;
+  font-size:12px;display:flex;flex-direction:column;height:100vh;overflow:hidden;user-select:none}
 
-/* ── HEADER ─────────────────────────────────────────── */
-header{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;z-index:100}
-header h1{font-size:12px;letter-spacing:4px;color:var(--accent);text-transform:uppercase;white-space:nowrap}
-#coords{font-size:11px;color:var(--muted);min-width:160px}
-.spacer{flex:1}
-#auth-status{font-size:11px;color:var(--success);white-space:nowrap}
-#auth-form{display:flex;gap:5px;align-items:center}
-#auth-form input{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 7px;font-family:inherit;font-size:11px;border-radius:4px;width:110px}
-#auth-form input:focus{outline:none;border-color:var(--accent)}
-#auth-error{display:none;font-size:10px;color:var(--danger);max-width:260px;line-height:1.4}
-button{background:var(--accent);color:#fff;border:none;padding:4px 10px;font:inherit;font-size:11px;border-radius:4px;cursor:pointer;transition:opacity .15s;white-space:nowrap}
+/* HEADER */
+header{display:flex;align-items:center;gap:7px;padding:5px 10px;
+  background:var(--sf);border-bottom:1px solid var(--bd);flex-shrink:0;z-index:100}
+h1{font-size:11px;letter-spacing:4px;color:var(--ac);text-transform:uppercase;white-space:nowrap}
+#coords{font-size:10px;color:var(--mu);min-width:130px}
+.sp{flex:1}
+#auth-status{font-size:11px;color:var(--ok);white-space:nowrap}
+#auth-form{display:flex;gap:4px;align-items:center}
+input[type=email],input[type=password],input[type=text],input[type=number]{
+  background:var(--bg);border:1px solid var(--bd);color:var(--tx);
+  padding:3px 6px;font:inherit;font-size:11px;border-radius:4px}
+input:focus{outline:none;border-color:var(--ac)}
+#auth-form input{width:100px}
+button{background:var(--ac);color:#fff;border:none;padding:3px 9px;
+  font:inherit;font-size:11px;border-radius:4px;cursor:pointer;transition:opacity .15s}
 button:hover{opacity:.82}
-button.ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
-button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-button.btn2{background:var(--accent2)}
+.g{background:transparent!important;border:1px solid var(--bd)!important;color:var(--mu)!important}
+.a{background:var(--ac)!important;color:#fff!important;border-color:var(--ac)!important}
+.b2{background:var(--ac2)!important}
+#fb-st{font-size:10px;padding:2px 6px;border-radius:3px;background:var(--s2);border:1px solid var(--bd)}
 #logout-btn{display:none}
 
-/* ── COOLDOWN BAR ──────────────────────────────────── */
-#cd-wrap{display:flex;align-items:center;gap:6px;padding:0 4px}
-#cd-bar-bg{width:80px;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;border:1px solid var(--border)}
-#cd-bar{height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width .1s linear}
-#cd-bar.full{background:var(--danger)}
-#cd-text{font-size:10px;color:var(--muted);min-width:38px}
+/* COOLDOWN */
+#cd-wrap{display:none;align-items:center;gap:5px}
+#cd-bg{width:68px;height:5px;background:var(--s2);border-radius:3px;overflow:hidden;border:1px solid var(--bd)}
+#cd-fill{height:100%;width:0%;background:var(--ac);border-radius:3px;transition:width .1s}
+#cd-fill.full{background:var(--dn)}
+#cd-txt{font-size:10px;color:var(--mu);min-width:52px;white-space:nowrap}
 
-/* ── LAYOUT ─────────────────────────────────────────── */
+/* LAYOUT */
 main{display:flex;flex:1;overflow:hidden}
+aside{width:186px;background:var(--sf);border-right:1px solid var(--bd);
+  display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
+.sec{padding:7px 9px;border-bottom:1px solid var(--bd)}
+.stl{font-size:9px;letter-spacing:2px;color:var(--mu);text-transform:uppercase;margin-bottom:5px}
+#sel-color{width:28px;height:28px;border-radius:4px;border:1px solid var(--bd);background:#fff;flex-shrink:0}
+#sel-preview{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+#sel-code{font-size:16px;letter-spacing:3px}
+#nick-lbl{font-size:10px;color:var(--ac2)}
+.px-row{display:flex;gap:3px;margin-top:4px}
+.px-row button{flex:1;padding:2px 0;font-size:10px;background:var(--s2);border:1px solid var(--bd);color:var(--mu)}
+.mode-row{display:flex;gap:3px;margin-bottom:4px}
+.mode-row button{flex:1;font-size:10px;padding:3px 2px;background:var(--s2);border:1px solid var(--bd);color:var(--mu)}
+#mode-lbl{font-size:10px;color:var(--mu);line-height:1.4}
+#pal-toggle{width:100%;margin-bottom:6px;font-size:10px;padding:3px}
+.ph{font-size:10px;color:var(--mu);line-height:1.5;margin-top:3px}
+.sw{width:15px;height:15px;border-radius:2px;cursor:pointer;display:inline-block}
+.sw:hover{transform:scale(1.5);z-index:20;position:relative}
+#audio-formula{width:100%;background:var(--bg);border:1px solid var(--bd);color:var(--tx);
+  font-family:inherit;font-size:10px;padding:4px;border-radius:4px;resize:vertical;min-height:40px;margin:4px 0}
+#audio-formula:focus{outline:none;border-color:var(--ac)}
+#waveform{width:100%;height:42px;background:var(--s2);border-radius:4px;display:block;margin-top:4px;border:1px solid var(--bd)}
+.seed-row{display:flex;gap:4px;margin-top:4px}
+.seed-row input{flex:1;font-size:10px;padding:3px 5px}
+#map-status{font-size:10px;color:var(--ok);margin-top:3px;min-height:13px}
+#map-pb{width:100%;height:3px;background:var(--s2);border-radius:2px;margin-top:3px;overflow:hidden}
+#map-pf{height:100%;width:0%;background:var(--ac2);border-radius:2px;transition:width .1s}
+.key-hint{font-size:10px;color:var(--mu);line-height:1.8;padding:7px 9px}
+kbd{background:var(--s2);border:1px solid var(--bd);border-radius:3px;padding:1px 3px;font-size:9px}
 
-/* ── SIDEBAR ─────────────────────────────────────────── */
-aside{width:198px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
-.sec{padding:9px 11px;border-bottom:1px solid var(--border)}
-.sec-title{font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:7px}
-
-/* selected color */
-#sel-preview{display:flex;align-items:center;gap:8px;margin-bottom:4px}
-#sel-color{width:32px;height:32px;border-radius:5px;border:1px solid var(--border);background:#888;flex-shrink:0}
-#sel-code{font-size:18px;letter-spacing:3px}
-
-/* nick */
-#nick-display{font-size:10px;color:var(--accent2);margin-top:2px}
-
-/* pixel size */
-.px-size-row{display:flex;gap:4px;margin-top:5px}
-.px-size-row button{flex:1;padding:3px 0;font-size:10px;background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
-.px-size-row button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-
-/* modes */
-.mode-btns{display:flex;gap:5px;margin-bottom:5px}
-.mode-btns button{flex:1;font-size:10px;padding:4px 2px;background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
-#mode-label{font-size:10px;color:var(--muted);line-height:1.4;margin-top:2px}
-
-/* palette */
-#palette-toggle{width:100%;margin-bottom:7px;font-size:10px;padding:4px}
-.palette-hint{font-size:10px;color:var(--muted);line-height:1.5;margin-top:4px}
-#palette-wheel-wrap{position:relative}
-#sq-canvas{cursor:crosshair;display:block}
-#ring-canvas{cursor:crosshair;display:block}
-.swatch{width:17px;height:17px;border-radius:3px;cursor:pointer;transition:transform .1s;flex-shrink:0}
-.swatch:hover{transform:scale(1.5);z-index:20;position:relative}
-
-/* audio */
-#audio-formula{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:10px;padding:5px;border-radius:4px;resize:vertical;min-height:46px;margin:5px 0}
-#audio-formula:focus{outline:none;border-color:var(--accent)}
-#waveform-canvas{width:100%;height:48px;background:var(--surface2);border-radius:4px;display:block;margin-top:5px;border:1px solid var(--border)}
-
-/* map */
-.seed-row{display:flex;gap:5px;margin-top:5px}
-.seed-row input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;font:inherit;font-size:10px;border-radius:4px}
-#map-status{font-size:10px;color:var(--success);margin-top:4px;min-height:13px}
-#map-progress{width:100%;height:4px;background:var(--surface2);border-radius:2px;margin-top:4px;overflow:hidden}
-#map-progress-bar{height:100%;width:0%;background:var(--accent2);border-radius:2px;transition:width .1s}
-
-/* settings panel */
-#settings-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center}
-#settings-overlay.open{display:flex}
-#settings-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;width:320px;max-height:80vh;overflow-y:auto}
-#settings-box h2{font-size:13px;letter-spacing:2px;color:var(--accent);margin-bottom:14px}
-.setting-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)}
-.setting-row:last-child{border:none}
-.setting-label{font-size:11px;color:var(--text)}
-.setting-sub{font-size:10px;color:var(--muted);margin-top:2px}
-/* toggle */
-.tog{position:relative;display:inline-block;width:32px;height:17px}
-.tog input{opacity:0;width:0;height:0}
-.tog-sl{position:absolute;cursor:pointer;inset:0;background:var(--border);border-radius:9px;transition:.2s}
-.tog-sl::before{content:"";position:absolute;width:13px;height:13px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:.2s}
-.tog input:checked+.tog-sl{background:var(--accent)}
-.tog input:checked+.tog-sl::before{transform:translateX(15px)}
-/* theme select */
-select{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:3px 7px;font:inherit;font-size:11px;border-radius:4px;cursor:pointer}
-select:focus{outline:none;border-color:var(--accent)}
-
-/* key hints */
-.key-hint{font-size:10px;color:var(--muted);line-height:1.8;padding:8px 11px}
-kbd{background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 4px;font-size:9px}
-
-/* ── CANVAS ─────────────────────────────────────────── */
-.canvas-wrap{flex:1;position:relative;overflow:hidden;background:#07090f}
+/* CANVAS */
+.cwrap{flex:1;position:relative;overflow:hidden;background:#fff}
 #pixel-canvas{position:absolute;top:0;left:0;width:100%;height:100%;cursor:cell}
+.zbtn{position:absolute;bottom:10px;right:10px;display:flex;flex-direction:column;gap:3px;z-index:5}
+.zbtn button{width:26px;height:26px;padding:0;font-size:13px;background:var(--sf);border:1px solid var(--bd);border-radius:4px;color:var(--tx)}
+#rvbtn{position:absolute;bottom:10px;left:10px;z-index:5;font-size:10px;padding:4px 7px;
+  background:var(--sf);border:1px solid var(--bd);color:var(--mu);border-radius:4px;cursor:pointer}
 
-/* zoom */
-.zoom-btns{position:absolute;bottom:12px;right:12px;display:flex;flex-direction:column;gap:4px;z-index:5}
-.zoom-btns button{width:28px;height:28px;padding:0;font-size:14px;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text)}
-#reset-view-btn{position:absolute;bottom:12px;left:12px;z-index:5;font-size:10px;padding:5px 8px;background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:5px}
+/* RIPPLE */
+.ripple{position:absolute;border-radius:50%;pointer-events:none;animation:rip .65s ease-out forwards}
+@keyframes rip{from{transform:scale(0);opacity:.8}to{transform:scale(5);opacity:0}}
 
-/* ripple */
-.ripple{position:absolute;border-radius:50%;pointer-events:none;animation:rip .6s ease-out forwards}
-@keyframes rip{from{transform:scale(0);opacity:.7}to{transform:scale(4);opacity:0}}
+/* MODALS */
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:300;align-items:center;justify-content:center}
+.modal.open{display:flex}
+.mbox{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:18px;width:300px;max-height:85vh;overflow-y:auto}
+.mbox h2{font-size:12px;letter-spacing:2px;color:var(--ac);margin-bottom:12px}
+.mbox input{width:100%;margin-bottom:6px;display:block;padding:5px 8px;font-size:12px;border-radius:4px}
+.merr{font-size:10px;color:var(--dn);margin-bottom:5px;display:none;line-height:1.4}
+.mbr{display:flex;gap:7px;margin-top:4px}
+.mbr button{flex:1}
+.srow{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)}
+.srow:last-child{border:none}
+.slbl{font-size:11px}
+.ssub{font-size:10px;color:var(--mu);margin-top:2px}
+.tog{position:relative;display:inline-block;width:30px;height:16px}
+.tog input{opacity:0;width:0;height:0}
+.tsl{position:absolute;cursor:pointer;inset:0;background:var(--bd);border-radius:8px;transition:.2s}
+.tsl::before{content:"";position:absolute;width:12px;height:12px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:.2s}
+.tog input:checked+.tsl{background:var(--ac)}
+.tog input:checked+.tsl::before{transform:translateX(14px)}
+select{background:var(--s2);border:1px solid var(--bd);color:var(--tx);
+  padding:3px 6px;font:inherit;font-size:11px;border-radius:4px;cursor:pointer}
 
-/* settings btn */
-#settings-btn{background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:14px;padding:3px 7px;border-radius:4px}
-
-/* register modal */
-#reg-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;align-items:center;justify-content:center}
-#reg-modal.open{display:flex}
-#reg-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:22px;width:300px}
-#reg-box h2{font-size:13px;letter-spacing:2px;color:var(--accent);margin-bottom:14px}
-#reg-box input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 9px;font:inherit;font-size:12px;border-radius:4px;margin-bottom:8px;display:block}
-#reg-box input:focus{outline:none;border-color:var(--accent)}
-#reg-box .btn-row{display:flex;gap:8px;margin-top:4px}
-#reg-box .btn-row button{flex:1}
-#reg-error{font-size:10px;color:var(--danger);margin-bottom:6px;display:none}
+/* HSB palette — менший квадрат */
+#pal-wheel{display:flex;flex-direction:column;align-items:center}
 </style>
 </head>
 <body>
 
-<!-- ── HEADER ─────────────────────────────────────────── -->
 <header>
   <h1>Pixel Universe</h1>
   <span id="coords"></span>
-  <div class="spacer"></div>
-
-  <!-- Cooldown -->
-  <div id="cd-wrap" style="display:none">
-    <div id="cd-bar-bg"><div id="cd-bar"></div></div>
-    <span id="cd-text">0.0s</span>
+  <span id="fb-st">⏳</span>
+  <div class="sp"></div>
+  <div id="cd-wrap">
+    <div id="cd-bg"><div id="cd-fill"></div></div>
+    <span id="cd-txt">0.0s / 300s</span>
   </div>
-
   <span id="auth-status"></span>
-  <span id="auth-error"></span>
-
   <div id="auth-form">
-    <input type="email"    id="email-inp" placeholder="email">
-    <input type="password" id="pass-inp"  placeholder="пароль">
+    <input type="email"    id="e-inp" placeholder="email">
+    <input type="password" id="p-inp" placeholder="пароль">
     <button id="login-btn">Увійти</button>
-    <button id="reg-open-btn" class="ghost">Реєстрація</button>
+    <button id="reg-open-btn" class="g">Реєстрація</button>
   </div>
-
-  <button id="logout-btn" class="ghost">Вийти</button>
-  <button id="settings-btn">⚙</button>
+  <button id="logout-btn" class="g">Вийти</button>
+  <button id="sett-btn" style="background:var(--s2);border:1px solid var(--bd);color:var(--mu);font-size:12px;padding:2px 6px">⚙</button>
 </header>
 
-<!-- ── REGISTER MODAL ──────────────────────────────────── -->
-<div id="reg-modal">
-  <div id="reg-box">
+<!-- REGISTER -->
+<div class="modal" id="reg-modal">
+  <div class="mbox">
     <h2>РЕЄСТРАЦІЯ</h2>
-    <div id="reg-error"></div>
-    <input type="email"    id="reg-email" placeholder="Email">
-    <input type="password" id="reg-pass"  placeholder="Пароль (мін. 6 символів)">
-    <input type="text"     id="reg-nick"  placeholder="Нікнейм" maxlength="20">
-    <div class="btn-row">
-      <button id="reg-submit-btn">Зареєструватись</button>
-      <button id="reg-cancel-btn" class="ghost">Скасувати</button>
+    <div class="merr" id="reg-err"></div>
+    <input type="email"    id="re" placeholder="Email">
+    <input type="password" id="rp" placeholder="Пароль (мін. 6 символів)">
+    <input type="text"     id="rn" placeholder="Нікнейм" maxlength="20">
+    <div class="mbr">
+      <button id="reg-submit">Зареєструватись</button>
+      <button id="reg-cancel" class="g">Скасувати</button>
     </div>
   </div>
 </div>
 
-<!-- ── SETTINGS MODAL ─────────────────────────────────── -->
-<div id="settings-overlay">
-  <div id="settings-box">
+<!-- SETTINGS -->
+<div class="modal" id="sett-modal">
+  <div class="mbox">
     <h2>⚙ НАЛАШТУВАННЯ</h2>
-
-    <div class="setting-row">
-      <div><div class="setting-label">Сітка</div><div class="setting-sub">Показувати сітку при зумі</div></div>
-      <label class="tog"><input type="checkbox" id="cfg-grid" checked><span class="tog-sl"></span></label>
-    </div>
-    <div class="setting-row">
-      <div><div class="setting-label">Активність пікселів</div><div class="setting-sub">Хвиля коли хтось малює</div></div>
-      <label class="tog"><input type="checkbox" id="cfg-ripple" checked><span class="tog-sl"></span></label>
-    </div>
-    <div class="setting-row">
-      <div><div class="setting-label">Звук при малюванні</div><div class="setting-sub">Тихий клік при ставленні пікселя</div></div>
-      <label class="tog"><input type="checkbox" id="cfg-sound"><span class="tog-sl"></span></label>
-    </div>
-    <div class="setting-row">
-      <div><div class="setting-label">Тема</div></div>
+    <div class="srow"><div><div class="slbl">Сітка</div></div>
+      <label class="tog"><input type="checkbox" id="cfg-grid" checked><span class="tsl"></span></label></div>
+    <div class="srow"><div><div class="slbl">Хвилі активності</div></div>
+      <label class="tog"><input type="checkbox" id="cfg-ripple" checked><span class="tsl"></span></label></div>
+    <div class="srow"><div><div class="slbl">Звук кліку</div></div>
+      <label class="tog"><input type="checkbox" id="cfg-click-snd" checked><span class="tsl"></span></label></div>
+    <div class="srow"><div><div class="slbl">Звук Shift</div></div>
+      <label class="tog"><input type="checkbox" id="cfg-shift-snd" checked><span class="tsl"></span></label></div>
+    <div class="srow"><div><div class="slbl">Звук піпетки</div></div>
+      <label class="tog"><input type="checkbox" id="cfg-eye-snd" checked><span class="tsl"></span></label></div>
+    <div class="srow"><div><div class="slbl">Тема</div></div>
       <select id="cfg-theme">
+        <option value="light">Світла</option>
         <option value="dark">Темна</option>
         <option value="midnight">Midnight</option>
         <option value="forest">Forest</option>
         <option value="rose">Rose</option>
       </select>
     </div>
-    <div style="margin-top:14px">
-      <button id="settings-close-btn" style="width:100%">Закрити</button>
+    <!-- Генератор карти — тільки для адміна -->
+    <div class="srow" id="map-section" style="display:none">
+      <div><div class="slbl">🌍 Генератор карти</div><div class="ssub">Тільки для адміна</div></div>
+      <button id="open-mapgen-btn" class="b2" style="font-size:10px;padding:3px 7px">Відкрити</button>
     </div>
+    <button id="sett-close" style="width:100%;margin-top:12px">Закрити</button>
   </div>
 </div>
 
-<!-- ── MAIN ──────────────────────────────────────────── -->
+<!-- MAP GENERATOR MODAL (admin only) -->
+<div class="modal" id="map-modal">
+  <div class="mbox">
+    <h2>🌍 ГЕНЕРАТОР КАРТИ</h2>
+    <p class="ph">Генерує 4–6 континентів · 1352×1024 · Білий суходіл · Голуба вода</p>
+    <div class="seed-row" style="margin-top:10px">
+      <input type="number" id="map-seed" placeholder="seed (авто)">
+      <button id="gen-btn" class="b2">Генерувати</button>
+    </div>
+    <div id="map-pb" style="margin-top:8px"><div id="map-pf"></div></div>
+    <div id="map-status"></div>
+    <button id="map-close" class="g" style="width:100%;margin-top:10px">Закрити</button>
+  </div>
+</div>
+
 <main>
 <aside>
-
-  
-
-  <!-- Вибраний колір + нік + розмір пікселя -->
+  <!-- Колір + нік + розмір -->
   <div class="sec">
-    <div class="sec-title">Колір</div>
-    <div id="sel-preview"><div id="sel-color"></div><span id="sel-code">mno</span></div>
-    <div id="nick-display"></div>
-    <div class="sec-title" style="margin-top:8px">Розмір пікселя</div>
-    <div class="px-size-row">
-      <button id="px1" class="active" onclick="setPxSize(1)">1×</button>
+    <div class="stl">Колір</div>
+    <div id="sel-preview"><div id="sel-color"></div><span id="sel-code">cfo</span></div>
+    <div id="nick-lbl"></div>
+    <div class="stl" style="margin-top:7px">Розмір пікселя</div>
+    <div class="px-row">
+      <button id="px1" class="a" onclick="setPxSize(1)">1×</button>
       <button id="px3" onclick="setPxSize(3)">3×</button>
       <button id="px5" onclick="setPxSize(5)">5×</button>
     </div>
@@ -233,162 +215,168 @@ kbd{background:var(--surface2);border:1px solid var(--border);border-radius:3px;
 
   <!-- Режими -->
   <div class="sec">
-    <div class="sec-title">Режим <kbd>Shift</kbd></div>
-    <div class="mode-btns">
-      <button id="mode1-btn" class="active" onclick="setDrawMode(1)">✏ Режим 1</button>
-      <button id="mode2-btn" class="ghost"  onclick="setDrawMode(2)">✋ Режим 2</button>
+    <div class="stl">Режим &nbsp;<kbd>Shift</kbd></div>
+    <div class="mode-row">
+      <button id="m1btn" class="a" onclick="setMode(1)">✏ Режим 1</button>
+      <button id="m2btn" class="g"  onclick="setMode(2)">✋ Режим 2</button>
     </div>
-    <div id="mode-label">Клік=піксель · Затиск=рух</div>
+    <div id="mode-lbl">Клік=піксель · Затиск=рух</div>
   </div>
 
   <!-- Палітра -->
   <div class="sec">
-    <div class="sec-title">Палітра</div>
-    <button id="palette-toggle">↔ Свотчі</button>
-    <div id="palette-wheel-wrap"></div>
-    <div id="palette-swatches-wrap" style="display:none"></div>
-  </div>
-
-  <!-- Генератор карти -->
-  <div class="sec">
-    <div class="sec-title">Генератор карти</div>
-    <div class="seed-row">
-      <input type="number" id="map-seed" placeholder="seed (авто)">
-      <button class="btn2" id="gen-map-btn">🌍 Gen</button>
-    </div>
-    <p class="palette-hint">4–6 континентів, 1352×1024</p>
-    <div id="map-progress"><div id="map-progress-bar"></div></div>
-    <div id="map-status"></div>
+    <div class="stl">Палітра</div>
+    <button id="pal-toggle">↔ Свотчі</button>
+    <div id="pal-wheel"></div>
+    <div id="pal-sw" style="display:none"></div>
   </div>
 
   <!-- Звук -->
   <div class="sec">
-    <div class="sec-title">Звук (формула)</div>
+    <div class="stl">Звук (формула)</div>
     <textarea id="audio-formula">Math.sin(t*440*2*Math.PI)*Math.exp(-t*3)</textarea>
-    <p class="palette-hint">t = час (сек), повертай −1..1</p>
-    <button id="play-audio-btn" style="width:100%;margin-top:4px">▶ Відтворити</button>
-    <canvas id="waveform-canvas" height="48"></canvas>
+    <p class="ph">t = час (сек), повертай −1..1</p>
+    <button id="play-btn" style="width:100%">▶ Відтворити</button>
+    <canvas id="waveform" height="42"></canvas>
   </div>
 
-  <!-- Підказки -->
   <div class="key-hint">
-    <kbd>Shift</kbd> — режим 2 (малювати затиском)<br>
+    <kbd>Shift</kbd> — переключити режим<br>
     <kbd>Ctrl</kbd>+клік — піпетка<br>
     <kbd>Scroll</kbd> — зум
   </div>
-
 </aside>
 
-<div class="canvas-wrap" id="canvas-wrap">
+<div class="cwrap" id="cwrap">
   <canvas id="pixel-canvas"></canvas>
-  <div class="zoom-btns">
+  <div class="zbtn">
     <button onclick="zoomBy(1.25)">+</button>
     <button onclick="zoomBy(0.8)">−</button>
   </div>
-  <button id="reset-view-btn" onclick="resetView()">⌂ Вид</button>
+  <button id="rvbtn" onclick="resetView()">⌂</button>
 </div>
 </main>
 
-<!-- ════════════════════════════════════════════════════ -->
-<script src="firebase-config.js"></script>
 <script type="module">
-// ════════════════════════════════════════════════════════
-//  FIREBASE
-// ════════════════════════════════════════════════════════
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore,collection,doc,setDoc,onSnapshot,query,limit,writeBatch,getDoc }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDCKmkm7PeB2s2xJ0RLJKRmOLK9kThrAvY",
-  authDomain: "pixeledworld.firebaseapp.com",
-  databaseURL: "https://pixeledworld-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "pixeledworld",
-  storageBucket: "pixeledworld.firebasestorage.app",
-  messagingSenderId: "862353757400",
-  appId: "1:862353757400:web:2cfd449f93a9fc3eac73ad",
-  measurementId: "G-R05NR5YMQ6"
+// ═══ FIREBASE CONFIG — ЗАМІНИ ТУТ ═══════════════════════
+const FB = {
+  apiKey:            "ТВІЙ_API_KEY",
+  authDomain:        "ТВІЙ_PROJECT.firebaseapp.com",
+  projectId:         "ТВІЙ_PROJECT_ID",
+  storageBucket:     "ТВІЙ_PROJECT.appspot.com",
+  messagingSenderId: "ТВІЙ_SENDER_ID",
+  appId:             "ТВІЙ_APP_ID"
 };
-  
-import { initializeApp }                              from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, doc, setDoc,
-         onSnapshot, query, limit, writeBatch,
-         getDoc }                                     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getAuth, createUserWithEmailAndPassword,
-         signInWithEmailAndPassword, signOut,
-         onAuthStateChanged }                         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-
-const app  = initializeApp(window.FIREBASE_CONFIG);
-const db   = getFirestore(app);
-const auth = getAuth(app);
-
 // ════════════════════════════════════════════════════════
-//  КОЛЬОРОВА СИСТЕМА
-// ════════════════════════════════════════════════════════
-function codeToIndex(code){
-  return (code.charCodeAt(0)-97)*676+(code.charCodeAt(1)-97)*26+(code.charCodeAt(2)-97);
+
+// АДМІН email
+const ADMIN_EMAIL = "rodimushkind@gmail.com";
+
+const fbs = document.getElementById('fb-st');
+let db=null, auth=null;
+const configured = !Object.values(FB).some(v=>v.startsWith('ТВІЙ'));
+if(configured){
+  try{
+    const app=initializeApp(FB); db=getFirestore(app); auth=getAuth(app);
+    fbs.textContent='🔥 OK'; fbs.style.color='var(--ok)';
+  }catch(e){ fbs.textContent='❌ '+e.code; fbs.style.color='var(--dn)'; }
+}else{ fbs.textContent='⚠ Заповни FB'; fbs.style.color='#f0a540'; }
+
+// ═══ ПАЛІТРА 15 000 ═══════════════════════════════════
+// palette.js завантажує window.PALETTE_DATA = {"aaa":"rgb(0,0,0)",...}
+const PAL = window.PALETTE_DATA || {};
+
+function codeToHex(code){
+  const rgb = PAL[code];
+  if(!rgb) return '#888888';
+  const m = rgb.match(/\d+/g);
+  if(!m) return '#888888';
+  return '#'+m.map(v=>parseInt(v).toString(16).padStart(2,'0')).join('');
 }
-function indexToCode(idx){
-  const a=Math.floor(idx/676),b=Math.floor((idx%676)/26),c=idx%26;
-  return String.fromCharCode(97+a,97+b,97+c);
+
+function hexToRgb(hex){
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return{r,g,b};
 }
-function hsbToRgb(h,s,b){
-  const i=Math.floor(h/60)%6,f=h/60-Math.floor(h/60);
-  const p=b*(1-s),q=b*(1-f*s),t=b*(1-(1-f)*s);
-  const m=[[b,t,p],[q,b,p],[p,b,t],[p,q,b],[t,p,b],[b,p,q]][i];
-  return{r:Math.round(m[0]*255),g:Math.round(m[1]*255),b:Math.round(m[2]*255)};
-}
-function rgbToHex(r,g,b){
-  return'#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
-}
-function indexToRGB(idx){
-  const h=(idx/15000)*360,layer=Math.floor(idx/1500);
-  const s=(45+(layer%5)*12)/100,l=(30+(layer%3)*13)/100;
-  const k=n=>(n+h/30)%12,a=s*Math.min(l,1-l);
-  const f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));
-  return{r:Math.round(f(0)*255),g:Math.round(f(8)*255),b:Math.round(f(4)*255)};
-}
-function indexToHex(idx){const{r,g,b}=indexToRGB(idx);return rgbToHex(r,g,b);}
-function codeToHex(code){return indexToHex(codeToIndex(code));}
-function nearestCode(r,g,b){
-  let best=0,bestD=Infinity;
-  for(let i=0;i<15000;i++){
-    const c=indexToRGB(i);
-    const d=(r-c.r)**2*0.299+(g-c.g)**2*0.587+(b-c.b)**2*0.114;
-    if(d<bestD){bestD=d;best=i;}
-    if(bestD<5)break;
+
+// Знайти найближчий код до RGB
+let _palArr = null;
+function getPalArr(){
+  if(!_palArr){
+    _palArr = Object.entries(PAL).slice(0,15000).map(([code,rgb])=>{
+      const m=rgb.match(/\d+/g);
+      return{code,r:+m[0],g:+m[1],b:+m[2]};
+    });
   }
-  return indexToCode(best);
+  return _palArr;
 }
 
-// ════════════════════════════════════════════════════════
-//  CANVAS / VIEW
-// ════════════════════════════════════════════════════════
-const CANVAS_W=1352, CANVAS_H=1024;
-let canvas,ctx,offscreen,offCtx;
-let pixelData={};
-let view={x:0,y:0,zoom:1};
-let mouse={down:false,btn:-1,sx:0,sy:0};
-let lastPx="";
-let drawMode=1;
-let pxSize=1;      // 1, 3, 5
-let currentUser=null;
-let userNick="";
+function nearestCode(r,g,b){
+  let best='aaa', bestD=1e9;
+  for(const c of getPalArr()){
+    const d=(r-c.r)**2*0.299+(g-c.g)**2*0.587+(b-c.b)**2*0.114;
+    if(d<bestD){bestD=d;best=c.code;}
+    if(bestD<3)break;
+  }
+  return best;
+}
 
-// Налаштування
-let cfg={grid:true,ripple:true,sound:false};
+// ═══ ЗВУКИ ════════════════════════════════════════════
+const SND = window.SOUNDS_B64||{};
+let _aCtx=null;
+function getAC(){ if(!_aCtx) _aCtx=new(window.AudioContext||window.webkitAudioContext)(); return _aCtx; }
+
+function playB64(name){
+  if(!SND[name])return;
+  try{
+    const ac=getAC();
+    const raw=atob(SND[name]);
+    const buf=new Uint8Array(raw.length);
+    for(let i=0;i<raw.length;i++) buf[i]=raw.charCodeAt(i);
+    ac.decodeAudioData(buf.buffer, decoded=>{
+      const src=ac.createBufferSource(); src.buffer=decoded;
+      src.connect(ac.destination); src.start();
+    });
+  }catch{}
+}
+
+const cfg={grid:true,ripple:true,clickSnd:true,shiftSnd:true,eyeSnd:true};
+
+function sndClick(){ if(cfg.clickSnd) playB64('click'); }
+function sndShiftOn(){  if(cfg.shiftSnd) playB64('shiftOn'); }
+function sndShiftOff(){ if(cfg.shiftSnd) playB64('shiftOff'); }
+function sndEye(){  if(cfg.eyeSnd)  playB64('eyedrop'); }
+function sndBlock(){ playB64('blocked'); }
+function sndOk(){    playB64('success'); }
+
+// ═══ CANVAS ENGINE ════════════════════════════════════
+const CW=1352, CH=1024;
+let canvas,ctx,off,offCtx;
+let pixData={};
+let view={x:0,y:0,zoom:1};
+let md={down:false,btn:-1,sx:0,sy:0,moved:false};
+let lastPk='';
+let drawMode=1, pxSize=1;
+let selCode='cfo'; // білий (cfo = найближчий до rgb(255,255,255))
+let curUser=null, userNick='', isAdmin=false;
 
 function initCanvas(){
   canvas=document.getElementById('pixel-canvas');
-  offscreen=document.createElement('canvas');
-  offscreen.width=CANVAS_W; offscreen.height=CANVAS_H;
-  offCtx=offscreen.getContext('2d');
+  off=document.createElement('canvas');
+  off.width=CW; off.height=CH;
+  offCtx=off.getContext('2d');
   ctx=canvas.getContext('2d');
-  ctx.imageSmoothingEnabled=false;
-  offCtx.imageSmoothingEnabled=false;
-  offCtx.fillStyle='#0a1525';
-  offCtx.fillRect(0,0,CANVAS_W,CANVAS_H);
-
-  resizeCanvas();
-  window.addEventListener('resize',()=>{resizeCanvas();render();});
-
+  [ctx,offCtx].forEach(c=>c.imageSmoothingEnabled=false);
+  // Білий фон полотна
+  offCtx.fillStyle='#ffffff';
+  offCtx.fillRect(0,0,CW,CH);
+  resize(); window.addEventListener('resize',()=>{resize();render();});
   canvas.addEventListener('mousedown',onMD);
   canvas.addEventListener('mousemove',onMM);
   canvas.addEventListener('mouseup',  onMU);
@@ -396,268 +384,253 @@ function initCanvas(){
   canvas.addEventListener('wheel',    onWheel,{passive:false});
   canvas.addEventListener('contextmenu',e=>e.preventDefault());
 
-  window.addEventListener('keydown',e=>{if(e.key==='Shift')setDrawMode(2);});
-  window.addEventListener('keyup',  e=>{if(e.key==='Shift')setDrawMode(1);});
-
-  // Firebase live
-  const q=query(collection(db,'canvas'),limit(200000));
-  onSnapshot(q,snap=>{
-    snap.docChanges().forEach(ch=>{
-      if(ch.type==='added'||ch.type==='modified'){
-        const d=ch.doc.data();
-        const key=`${d.x}_${d.y}`;
-        const isNew = pixelData[key]!==d.colorCode;
-        pixelData[key]=d.colorCode;
-        paintPx(d.x,d.y,d.colorCode,d.size||1);
-        // Ripple якщо хтось інший поставив
-        if(isNew && cfg.ripple && (!currentUser||d.userId!==currentUser.uid)){
-          spawnRipple(d.x,d.y,d.colorCode);
-        }
-      }
-    });
-    render();
+  window.addEventListener('keydown',e=>{
+    if(e.key==='Shift' && drawMode===1){ setMode(2); sndShiftOn(); }
+    if((e.ctrlKey||e.metaKey) && !e._eyeHandled){ _eyeDown=true; canvas.style.cursor='crosshair'; }
+  });
+  window.addEventListener('keyup',e=>{
+    if(e.key==='Shift' && drawMode===2){ setMode(1); sndShiftOff(); }
+    if(e.key==='Control'||e.key==='Meta'){ _eyeDown=false; updateCursor(); }
   });
 
-  centerView();
-  render();
+  if(db){
+    const q=query(collection(db,'canvas'),limit(500000));
+    onSnapshot(q,snap=>{
+      snap.docChanges().forEach(ch=>{
+        if(ch.type==='added'||ch.type==='modified'){
+          const d=ch.doc.data();
+          const key=`${d.x}_${d.y}`;
+          const isNew=pixData[key]!==d.colorCode;
+          pixData[key]=d.colorCode;
+          paintOne(d.x,d.y,d.colorCode,d.size||1);
+          if(isNew&&cfg.ripple&&(!curUser||d.userId!==curUser.uid)) spawnRipple(d.x,d.y,d.colorCode);
+        }
+      });
+      render();
+    },err=>console.warn('snap:',err));
+  }
+  centerView(); render();
+  // Встановити початковий вибраний колір (білий)
+  setSel('cfo');
 }
 
-function resizeCanvas(){
+let _eyeDown=false;
+
+function resize(){
   canvas.width=canvas.parentElement.clientWidth;
   canvas.height=canvas.parentElement.clientHeight;
   ctx.imageSmoothingEnabled=false;
 }
 function centerView(){
-  const s=Math.min(canvas.width/CANVAS_W,canvas.height/CANVAS_H)*0.88;
-  view.zoom=s;
-  view.x=(canvas.width-CANVAS_W*s)/2;
-  view.y=(canvas.height-CANVAS_H*s)/2;
+  const s=Math.min(canvas.width/CW,canvas.height/CH)*.88;
+  view.zoom=s; view.x=(canvas.width-CW*s)/2; view.y=(canvas.height-CH*s)/2;
 }
-function paintPx(x,y,code,sz=1){
+function paintOne(x,y,code,sz=1){
   offCtx.fillStyle=codeToHex(code);
   offCtx.fillRect(x,y,sz,sz);
 }
 function render(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle='#07090f';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.save();
-  ctx.translate(view.x,view.y);
-  ctx.scale(view.zoom,view.zoom);
-  ctx.imageSmoothingEnabled=false;
-  ctx.drawImage(offscreen,0,0);
-  if(cfg.grid && view.zoom>7){
-    ctx.strokeStyle='rgba(255,255,255,0.05)';
-    ctx.lineWidth=1/view.zoom;
-    for(let x=0;x<=CANVAS_W;x++){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,CANVAS_H);ctx.stroke();}
-    for(let y=0;y<=CANVAS_H;y++){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(CANVAS_W,y);ctx.stroke();}
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.save(); ctx.translate(view.x,view.y); ctx.scale(view.zoom,view.zoom);
+  ctx.imageSmoothingEnabled=false; ctx.drawImage(off,0,0);
+  if(cfg.grid&&view.zoom>7){
+    ctx.strokeStyle='rgba(0,0,0,0.06)'; ctx.lineWidth=1/view.zoom;
+    for(let x=0;x<=CW;x++){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,CH);ctx.stroke();}
+    for(let y=0;y<=CH;y++){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(CW,y);ctx.stroke();}
   }
   ctx.restore();
 }
-function s2p(sx,sy){
-  return{x:Math.floor((sx-view.x)/view.zoom),y:Math.floor((sy-view.y)/view.zoom)};
-}
-function inB(x,y){return x>=0&&x<CANVAS_W&&y>=0&&y<CANVAS_H;}
+function s2p(sx,sy){ return{x:Math.floor((sx-view.x)/view.zoom),y:Math.floor((sy-view.y)/view.zoom)}; }
+function inB(x,y){ return x>=0&&x<CW&&y>=0&&y<CH; }
 
-// ── MOUSE ──────────────────────────────────────────────
+// MOUSE
 function onMD(e){
   const r=canvas.getBoundingClientRect();
   const{x,y}=s2p(e.clientX-r.left,e.clientY-r.top);
-  mouse.down=true; mouse.btn=e.button;
-  mouse.sx=e.clientX; mouse.sy=e.clientY;
-  lastPx="";
-  if((e.ctrlKey||e.metaKey)&&inB(x,y)){pickColor(x,y);return;}
-  if(drawMode===1){
-    if(e.button===0&&inB(x,y))tryPlace(x,y);
-  } else {
-    if(e.button===0&&inB(x,y))tryPlace(x,y);
+  md.down=true; md.btn=e.button; md.sx=e.clientX; md.sy=e.clientY; md.moved=false;
+  lastPk='';
+  // Піпетка
+  if(_eyeDown && inB(x,y)){ pickColor(x,y); sndEye(); return; }
+  if(e.button===0 && inB(x,y)){
+    if(drawMode===1){
+      // Режим 1: реєструємо клік — поставимо піксель при mouseup якщо не пересунули
+      // нічого не робимо тут
+    } else {
+      // Режим 2: відразу починаємо малювати
+      tryPlace(x,y);
+    }
   }
 }
 function onMM(e){
   const r=canvas.getBoundingClientRect();
   const{x,y}=s2p(e.clientX-r.left,e.clientY-r.top);
   const el=document.getElementById('coords');
-  if(el) el.textContent=inB(x,y)?`${x} : ${y}  [${selCode}]`:'';
-  if(!mouse.down)return;
-  const dx=e.clientX-mouse.sx, dy=e.clientY-mouse.sy;
+  if(el) el.textContent=inB(x,y)?`${x}:${y} [${selCode}]`:'';
+  const dx=e.clientX-md.sx, dy=e.clientY-md.sy;
+  if(Math.abs(dx)>3||Math.abs(dy)>3) md.moved=true;
+  if(!md.down)return;
   if(drawMode===1){
-    view.x+=dx; view.y+=dy;
-    mouse.sx=e.clientX; mouse.sy=e.clientY;
-    render();
+    // Режим 1: затиск = пан
+    view.x+=e.clientX-md.sx; view.y+=e.clientY-md.sy;
+    md.sx=e.clientX; md.sy=e.clientY; render();
   } else {
-    if(mouse.btn===0&&inB(x,y))tryPlace(x,y);
+    // Режим 2: затиск = безперервне малювання
+    if(md.btn===0&&inB(x,y)) tryPlace(x,y);
   }
 }
-function onMU(){mouse.down=false;mouse.btn=-1;}
+function onMU(e){
+  if(md.down && md.btn===0 && drawMode===1 && !md.moved){
+    // Режим 1: відпустили мишу без руху = ставимо піксель
+    const r=canvas.getBoundingClientRect();
+    const{x,y}=s2p(e.clientX-r.left,e.clientY-r.top);
+    if(inB(x,y) && !_eyeDown) tryPlace(x,y);
+  }
+  md.down=false; md.btn=-1; md.moved=false;
+}
 function onWheel(e){
   e.preventDefault();
-  const r=canvas.getBoundingClientRect();
-  const mx=e.clientX-r.left, my=e.clientY-r.top;
-  const f=e.deltaY<0?1.18:1/1.18;
-  const nz=Math.max(0.06,Math.min(40,view.zoom*f));
-  view.x=mx-(mx-view.x)*(nz/view.zoom);
-  view.y=my-(my-view.y)*(nz/view.zoom);
-  view.zoom=nz; render();
+  const r=canvas.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+  const f=e.deltaY<0?1.18:1/1.18, nz=Math.max(0.05,Math.min(40,view.zoom*f));
+  view.x=mx-(mx-view.x)*(nz/view.zoom); view.y=my-(my-view.y)*(nz/view.zoom); view.zoom=nz; render();
 }
 window.zoomBy=f=>{
   const cx=canvas.width/2,cy=canvas.height/2;
-  const nz=Math.max(0.06,Math.min(40,view.zoom*f));
-  view.x=cx-(cx-view.x)*(nz/view.zoom);
-  view.y=cy-(cy-view.y)*(nz/view.zoom);
-  view.zoom=nz; render();
+  const nz=Math.max(0.05,Math.min(40,view.zoom*f));
+  view.x=cx-(cx-view.x)*(nz/view.zoom); view.y=cy-(cy-view.y)*(nz/view.zoom); view.zoom=nz; render();
 };
 window.resetView=()=>{centerView();render();};
 
-// ── RIPPLE ─────────────────────────────────────────────
-function spawnRipple(px,py,code){
-  const wrap=document.getElementById('canvas-wrap');
-  const sx=(px*view.zoom+view.x), sy=(py*view.zoom+view.y);
-  const el=document.createElement('div');
-  el.className='ripple';
-  el.style.cssText=`left:${sx}px;top:${sy}px;width:12px;height:12px;margin:-6px 0 0 -6px;background:${codeToHex(code)}`;
-  wrap.appendChild(el);
-  setTimeout(()=>el.remove(),650);
+function updateCursor(){
+  canvas.style.cursor=_eyeDown?'crosshair':(drawMode===1?'cell':'crosshair');
 }
 
-// ── DRAW ───────────────────────────────────────────────
-let selCode='mno';
+// RIPPLE
+function spawnRipple(px,py,code){
+  const wrap=document.getElementById('cwrap');
+  const sx=px*view.zoom+view.x, sy=py*view.zoom+view.y;
+  const el=document.createElement('div'); el.className='ripple';
+  el.style.cssText=`left:${sx}px;top:${sy}px;width:12px;height:12px;margin:-6px 0 0 -6px;background:${codeToHex(code)}`;
+  wrap.appendChild(el); setTimeout(()=>el.remove(),700);
+}
+
+// ═══ COOLDOWN — 5 ХВИЛИН = 300 СЕК ════════════════════
+const CD_KEY='pxuni_cd2', CD_MAX=300.0;
+function getCd(){
+  try{const{val,ts}=JSON.parse(localStorage.getItem(CD_KEY)||'{"val":0,"ts":0}');
+    return Math.max(0,val-(Date.now()-ts)/1000);}catch{return 0;}
+}
+function addCd(s){
+  const cur=getCd(),nv=Math.min(CD_MAX,cur+s);
+  localStorage.setItem(CD_KEY,JSON.stringify({val:nv,ts:Date.now()}));
+}
+function cdBlocked(){ return getCd()>=CD_MAX; }
+
+setInterval(()=>{
+  const cur=getCd(),pct=(cur/CD_MAX)*100;
+  const fill=document.getElementById('cd-fill');
+  const txt=document.getElementById('cd-txt');
+  const wrap=document.getElementById('cd-wrap');
+  if(fill){fill.style.width=pct+'%'; fill.className=pct>=99.9?'full':'';}
+  const m=Math.floor(cur/60), s=Math.floor(cur%60);
+  if(txt) txt.textContent=`${m}:${s.toString().padStart(2,'0')} / 5:00`;
+  if(wrap) wrap.style.display=curUser?'flex':'none';
+},100);
+
+// ═══ МАЛЮВАННЯ ════════════════════════════════════════
 async function tryPlace(x,y){
-  if(cdBlocked()){showCdMsg();return;}
-  // Округлюємо до кратного pxSize
-  const gx=Math.floor(x/pxSize)*pxSize;
-  const gy=Math.floor(y/pxSize)*pxSize;
-  const key=`${gx}_${gy}`;
-  if(key===lastPx)return;
-  lastPx=key;
-  if(!currentUser){showErr('Увійди щоб малювати!');return;}
+  const gx=Math.floor(x/pxSize)*pxSize, gy=Math.floor(y/pxSize)*pxSize;
 
-  // Cooldown: +0.5s
-  addCooldown(0.5);
+  // Порахуємо скільки пікселів реально можна намалювати
+  const cost = pxSize * pxSize * 0.5; // 1px=0.5, 3x3=4.5, 5x5=12.5
 
-  for(let dx=0;dx<pxSize;dx++){
+  // Перевіряємо чи колір ІНШИЙ перед тим як тратити кулдаун
+  const existKey = `${gx}_${gy}`;
+  if(pixData[existKey]===selCode){ lastPk=existKey; return; } // той самий колір — не витрачаємо
+
+  if(cdBlocked()){ sndBlock(); showErr(`Кулдаун! Зачекай ${Math.ceil(getCd()-CD_MAX+getCd())}с`); return; }
+  const key=existKey;
+  if(key===lastPk) return; lastPk=key;
+  if(!curUser){ showErr('Увійди щоб малювати!'); return; }
+
+  // Скільки реально вистачає
+  const avail = (CD_MAX - getCd()) / 0.5; // скільки пікселів лишилось
+  const totalPx = pxSize * pxSize;
+  const canDraw = Math.min(totalPx, Math.floor(avail)||1);
+
+  addCd(canDraw * 0.5);
+  sndClick();
+
+  // Малюємо тільки стільки пікселів на скільки вистачає
+  let drawn=0;
+  outer: for(let dx=0;dx<pxSize;dx++){
     for(let dy=0;dy<pxSize;dy++){
-      const px=gx+dx, py=gy+dy;
+      if(drawn>=canDraw) break outer;
+      const px=gx+dx,py=gy+dy;
       if(!inB(px,py))continue;
-      pixelData[`${px}_${py}`]=selCode;
-      paintPx(px,py,selCode,1);
+      pixData[`${px}_${py}`]=selCode;
+      paintOne(px,py,selCode);
+      drawn++;
     }
   }
   render();
-  if(cfg.sound)playClick();
 
-  try{
-    await setDoc(doc(db,'canvas',key),{
-      x:gx,y:gy,colorCode:selCode,size:pxSize,
-      userId:currentUser.uid,userNick:userNick,
-      userEmail:currentUser.email,placedAt:Date.now()
-    });
-  }catch(err){showErr('Firebase: '+err.message);}
+  if(db){
+    try{
+      await setDoc(doc(db,'canvas',key),{
+        x:gx,y:gy,colorCode:selCode,size:pxSize,
+        userId:curUser.uid,userNick,userEmail:curUser.email,placedAt:Date.now()
+      });
+    }catch(e){showErr('DB: '+e.message);}
+  }
 }
 
 function pickColor(x,y){
-  const c=pixelData[`${x}_${y}`];
-  if(c){setSelCode(c);return;}
+  const c=pixData[`${x}_${y}`];
+  if(c){ setSel(c); return; }
   const p=offCtx.getImageData(x,y,1,1).data;
-  setSelCode(nearestCode(p[0],p[1],p[2]));
+  setSel(nearestCode(p[0],p[1],p[2]));
 }
 
-// ════════════════════════════════════════════════════════
-//  COOLDOWN — зберігається в localStorage
-// ════════════════════════════════════════════════════════
-const CD_KEY='pixeluni_cd';
-const CD_MAX=5.0;
-let cdInterval=null;
-
-function getCdStored(){
-  try{
-    const raw=localStorage.getItem(CD_KEY);
-    if(!raw)return{val:0,ts:Date.now()};
-    return JSON.parse(raw);
-  }catch{return{val:0,ts:Date.now()};}
-}
-function getCdCurrent(){
-  const{val,ts}=getCdStored();
-  const elapsed=(Date.now()-ts)/1000;
-  return Math.max(0, val-elapsed);
-}
-function addCooldown(sec){
-  const cur=getCdCurrent();
-  const newVal=Math.min(CD_MAX, cur+sec);
-  localStorage.setItem(CD_KEY, JSON.stringify({val:newVal,ts:Date.now()}));
-  updateCdUI();
-}
-function cdBlocked(){return getCdCurrent()>=CD_MAX;}
-function showCdMsg(){
-  const rem=getCdCurrent().toFixed(1);
-  showErr(`Кулдаун! Почекай ${rem}с (максимум ${CD_MAX}с)`);
-}
-
-function startCdTimer(){
-  if(cdInterval)clearInterval(cdInterval);
-  cdInterval=setInterval(()=>{
-    updateCdUI();
-  },100);
-}
-function updateCdUI(){
-  const cur=getCdCurrent();
-  const bar=document.getElementById('cd-bar');
-  const txt=document.getElementById('cd-text');
-  const wrap=document.getElementById('cd-wrap');
-  if(!bar||!txt||!wrap)return;
-  const pct=(cur/CD_MAX)*100;
-  bar.style.width=pct+'%';
-  bar.className=pct>=99.9?'full':'';
-  txt.textContent=cur.toFixed(1)+'s';
-  wrap.style.display=currentUser?'flex':'none';
-  // Зменшуємо по 0.01 кожні 10мс (але UI оновлюємо кожні 100мс — досить)
-}
-
-// ════════════════════════════════════════════════════════
-//  РЕЖИМИ / РОЗМІР
-// ════════════════════════════════════════════════════════
-window.setDrawMode=function(m){
+// ═══ РЕЖИМИ ══════════════════════════════════════════
+window.setMode=function(m){
   drawMode=m;
-  document.getElementById('mode1-btn').classList.toggle('active',m===1);
-  document.getElementById('mode2-btn').classList.toggle('active',m===2);
-  document.getElementById('mode1-btn').classList.toggle('ghost',m!==1);
-  document.getElementById('mode2-btn').classList.toggle('ghost',m!==2);
-  document.getElementById('mode-label').textContent=
-    m===1?'Клік=піксель · Затиск=рух':'Затиск=малювати · Клік одиночний';
-  canvas.style.cursor=m===1?'cell':'crosshair';
+  ['m1btn','m2btn'].forEach((id,i)=>{
+    const b=document.getElementById(id);
+    if(!b)return;
+    b.className=i===m-1?'a':'g';
+  });
+  document.getElementById('mode-lbl').textContent=
+    m===1?'Клік=піксель · Затиск=рух':'Затиск=малювати безперервно';
+  updateCursor();
 };
+
 window.setPxSize=function(s){
   pxSize=s;
-  [1,3,5].forEach(v=>{
-    document.getElementById('px'+v).classList.toggle('active',v===s);
-  });
+  [1,3,5].forEach(v=>{ const b=document.getElementById('px'+v); if(b) b.className=v===s?'a':''; });
 };
 
-// ════════════════════════════════════════════════════════
-//  ВИБРАНИЙ КОЛІР
-// ════════════════════════════════════════════════════════
-function setSelCode(code){
+// ═══ ВИБРАНИЙ КОЛІР ══════════════════════════════════
+function setSel(code){
   selCode=code;
   const hex=codeToHex(code);
-  document.getElementById('sel-color').style.backgroundColor=hex;
-  document.getElementById('sel-code').textContent=code;
+  const sc=document.getElementById('sel-color');
+  const scd=document.getElementById('sel-code');
+  if(sc) sc.style.backgroundColor=hex;
+  if(scd) scd.textContent=code;
 }
-setSelCode('mno');
 
-// ════════════════════════════════════════════════════════
-//  HSB ПАЛІТРА (колесо + квадрат)
-// ════════════════════════════════════════════════════════
-(function buildPalette(){
-  let paletteMode='wheel';
-  let curHue=200, curSat=0.8, curBri=0.9;
-  const SIZE=174, RING=17;
-  const SQ=SIZE-RING*2-8;
-  const OFF=RING+4;
+// ═══ HSB ПАЛІТРА (менший розмір) ═════════════════════
+(function buildPal(){
+  const SIZE=150, RING=14, SQ=SIZE-RING*2-6, OFF=RING+3;
+  let hue=0, sat=0, bri=1; // початок: білий
+  let palMode='wheel';
 
-  const wrap=document.getElementById('palette-wheel-wrap');
+  const wWrap=document.getElementById('pal-wheel');
+  const swWrap=document.getElementById('pal-sw');
 
-  // Контейнер
   const cont=document.createElement('div');
-  cont.style.cssText=`position:relative;width:${SIZE}px;height:${SIZE}px;margin:0 auto 6px`;
+  cont.style.cssText=`position:relative;width:${SIZE}px;height:${SIZE}px;margin:0 auto 5px`;
 
   const ringC=document.createElement('canvas');
   ringC.width=ringC.height=SIZE;
@@ -665,173 +638,132 @@ setSelCode('mno');
   cont.appendChild(ringC);
 
   const sqC=document.createElement('canvas');
-  sqC.id='sq-canvas';
   sqC.width=sqC.height=SQ;
   sqC.style.cssText=`position:absolute;top:${OFF}px;left:${OFF}px;cursor:crosshair`;
   cont.appendChild(sqC);
 
-  // Маркер кільця
   const rm=document.createElement('div');
-  rm.style.cssText='position:absolute;width:8px;height:8px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 3px #000;pointer-events:none;transform:translate(-50%,-50%);z-index:5';
+  rm.style.cssText='position:absolute;width:7px;height:7px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 2px #000;pointer-events:none;transform:translate(-50%,-50%);z-index:5';
   cont.appendChild(rm);
 
-  // Маркер квадрату
   const sm=document.createElement('div');
-  sm.style.cssText='position:absolute;width:8px;height:8px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 3px #000;pointer-events:none;transform:translate(-50%,-50%);z-index:5';
+  sm.style.cssText='position:absolute;width:7px;height:7px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 2px #000;pointer-events:none;transform:translate(-50%,-50%);z-index:5';
   cont.appendChild(sm);
 
+  function hsb2rgb(h,s,b){
+    const i=Math.floor(h/60)%6,f=h/60-Math.floor(h/60);
+    const p=b*(1-s),q=b*(1-f*s),t=b*(1-(1-f)*s);
+    const m=[[b,t,p],[q,b,p],[p,b,t],[p,q,b],[t,p,b],[b,p,q]][i];
+    return{r:Math.round(m[0]*255),g:Math.round(m[1]*255),b:Math.round(m[2]*255)};
+  }
+
   function drawRing(){
-    const c=ringC.getContext('2d');
-    c.clearRect(0,0,SIZE,SIZE);
+    const c=ringC.getContext('2d'); c.clearRect(0,0,SIZE,SIZE);
     for(let i=0;i<360;i++){
-      const a1=(i/360)*Math.PI*2-Math.PI/2;
-      const a2=((i+1.5)/360)*Math.PI*2-Math.PI/2;
-      const r=SIZE/2, ri=r-RING;
+      const a1=(i/360)*Math.PI*2-Math.PI/2, a2=((i+1.5)/360)*Math.PI*2-Math.PI/2;
+      const r=SIZE/2,ri=r-RING;
       c.beginPath();
       c.moveTo(SIZE/2+ri*Math.cos(a1),SIZE/2+ri*Math.sin(a1));
       c.arc(SIZE/2,SIZE/2,r,a1,a2);
       c.arc(SIZE/2,SIZE/2,ri,a2,a1,true);
-      c.closePath();
-      c.fillStyle=`hsl(${i},100%,50%)`;
-      c.fill();
+      c.closePath(); c.fillStyle=`hsl(${i},100%,50%)`; c.fill();
     }
   }
   function drawSq(){
     const c=sqC.getContext('2d');
     const img=c.createImageData(SQ,SQ);
-    for(let y=0;y<SQ;y++){
-      for(let x=0;x<SQ;x++){
-        const s=x/SQ, b=1-y/SQ;
-        const rgb=hsbToRgb(curHue,s,b);
-        const i=(y*SQ+x)*4;
-        img.data[i]=rgb.r; img.data[i+1]=rgb.g; img.data[i+2]=rgb.b; img.data[i+3]=255;
-      }
+    for(let y=0;y<SQ;y++) for(let x=0;x<SQ;x++){
+      const s=x/SQ,b=1-y/SQ,rgb=hsb2rgb(hue,s,b),i=(y*SQ+x)*4;
+      img.data[i]=rgb.r;img.data[i+1]=rgb.g;img.data[i+2]=rgb.b;img.data[i+3]=255;
     }
     c.putImageData(img,0,0);
   }
-  function updateRingMark(){
-    const r=SIZE/2-RING/2, a=(curHue-90)*Math.PI/180;
-    rm.style.left=`${SIZE/2+r*Math.cos(a)}px`;
-    rm.style.top=`${SIZE/2+r*Math.sin(a)}px`;
-  }
-  function updateSqMark(){
-    sm.style.left=`${OFF+curSat*SQ}px`;
-    sm.style.top=`${OFF+(1-curBri)*SQ}px`;
-  }
-  function pick(){
-    const rgb=hsbToRgb(curHue,curSat,curBri);
-    setSelCode(nearestCode(rgb.r,rgb.g,rgb.b));
-  }
+  function updRM(){ const r=SIZE/2-RING/2,a=(hue-90)*Math.PI/180;rm.style.left=`${SIZE/2+r*Math.cos(a)}px`;rm.style.top=`${SIZE/2+r*Math.sin(a)}px`; }
+  function updSM(){ sm.style.left=`${OFF+sat*SQ}px`;sm.style.top=`${OFF+(1-bri)*SQ}px`; }
+  function pick(){ const rgb=hsb2rgb(hue,sat,bri); setSel(nearestCode(rgb.r,rgb.g,rgb.b)); }
 
-  // Drag кільце
-  ringC.addEventListener('mousedown',e=>{
-    function move(ev){
-      const r=ringC.getBoundingClientRect();
-      const dx=ev.clientX-r.left-SIZE/2, dy=ev.clientY-r.top-SIZE/2;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<SIZE/2-RING-2||dist>SIZE/2+2)return;
-      curHue=((Math.atan2(dy,dx)*180/Math.PI)+360)%360;
-      drawSq(); updateRingMark(); pick();
-    }
-    move(e);
-    const up=()=>window.removeEventListener('mousemove',move);
-    window.addEventListener('mousemove',move);
-    window.addEventListener('mouseup',up,{once:true});
+  function drag(el,fn){
+    el.addEventListener('mousedown',e=>{
+      fn(e);
+      const mv=ev=>fn(ev);
+      const up=()=>window.removeEventListener('mousemove',mv);
+      window.addEventListener('mousemove',mv);
+      window.addEventListener('mouseup',up,{once:true});
+      e.stopPropagation();
+    });
+  }
+  drag(ringC,e=>{
+    const r=ringC.getBoundingClientRect();
+    const dx=e.clientX-r.left-SIZE/2,dy=e.clientY-r.top-SIZE/2;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<SIZE/2-RING-2||dist>SIZE/2+2)return;
+    hue=((Math.atan2(dy,dx)*180/Math.PI)+360)%360;
+    drawSq(); updRM(); pick();
   });
-  // Drag квадрат
-  sqC.addEventListener('mousedown',e=>{
-    function move(ev){
-      const r=sqC.getBoundingClientRect();
-      curSat=Math.max(0,Math.min(1,(ev.clientX-r.left)/SQ));
-      curBri=Math.max(0,Math.min(1,1-(ev.clientY-r.top)/SQ));
-      updateSqMark(); pick();
-    }
-    move(e);
-    const up=()=>window.removeEventListener('mousemove',move);
-    window.addEventListener('mousemove',move);
-    window.addEventListener('mouseup',up,{once:true});
+  drag(sqC,e=>{
+    const r=sqC.getBoundingClientRect();
+    sat=Math.max(0,Math.min(1,(e.clientX-r.left)/SQ));
+    bri=Math.max(0,Math.min(1,1-(e.clientY-r.top)/SQ));
+    updSM(); pick();
   });
 
-  wrap.appendChild(cont);
-  wrap.insertAdjacentHTML('beforeend','<p class="palette-hint">Кільце=відтінок · Квадрат=насиченість/яскравість</p>');
+  wWrap.appendChild(cont);
+  wWrap.insertAdjacentHTML('beforeend','<p class="ph">Кільце=відтінок · Квадрат=sat/bri</p>');
+  drawRing(); drawSq(); updRM(); updSM();
 
-  drawRing(); drawSq(); updateRingMark(); updateSqMark();
-
-  // Свотчі
-  const swWrap=document.getElementById('palette-swatches-wrap');
-  const swGrid=document.createElement('div');
-  swGrid.style.cssText='display:flex;flex-wrap:wrap;gap:3px';
-  // 44 кольори
+  // Свотчі: 44 кольори + 6 сірих
+  const sg=document.createElement('div'); sg.style.cssText='display:flex;flex-wrap:wrap;gap:3px';
+  const codes = Object.keys(PAL).slice(0,15000);
   for(let i=0;i<44;i++){
-    const idx=Math.floor((i/44)*15000);
-    const s=document.createElement('div');
-    s.className='swatch';
-    s.style.background=indexToHex(idx);
-    s.title=indexToCode(idx);
-    s.onclick=()=>setSelCode(indexToCode(idx));
-    swGrid.appendChild(s);
+    const code=codes[Math.floor((i/44)*15000)]||'aaa';
+    const s=document.createElement('div'); s.className='sw';
+    s.style.background=codeToHex(code); s.title=code;
+    s.onclick=()=>setSel(code); sg.appendChild(s);
   }
-  // 6 відтінків сірого
-  [0,51,102,153,204,255].forEach(v=>{
-    const code=nearestCode(v,v,v);
-    const s=document.createElement('div');
-    s.className='swatch';
-    s.style.background=rgbToHex(v,v,v);
-    s.title=code;
-    s.onclick=()=>setSelCode(code);
-    swGrid.appendChild(s);
+  // 6 відтінків сірого включаючи чорний (aaa) і білий (cfo)
+  ['aaa','acp','afq','akr','apq','cfo'].forEach(code=>{
+    const s=document.createElement('div'); s.className='sw';
+    s.style.background=codeToHex(code); s.title=code;
+    s.onclick=()=>setSel(code); sg.appendChild(s);
   });
-  swWrap.appendChild(swGrid);
-  swWrap.insertAdjacentHTML('beforeend','<p class="palette-hint" style="margin-top:5px">44 кольори + 6 відтінків сірого</p>');
+  swWrap.appendChild(sg);
+  swWrap.insertAdjacentHTML('beforeend','<p class="ph" style="margin-top:4px">44 кольори + чорний/білий/сірі</p>');
 
-  // Toggle
-  document.getElementById('palette-toggle').addEventListener('click',()=>{
-    paletteMode=paletteMode==='wheel'?'swatches':'wheel';
-    wrap.style.display=paletteMode==='wheel'?'block':'none';
-    swWrap.style.display=paletteMode==='swatches'?'block':'none';
-    document.getElementById('palette-toggle').textContent=paletteMode==='wheel'?'↔ Свотчі':'↔ Колесо';
+  document.getElementById('pal-toggle').addEventListener('click',()=>{
+    palMode=palMode==='wheel'?'swatches':'wheel';
+    wWrap.style.display=palMode==='wheel'?'flex':'none';
+    swWrap.style.display=palMode==='swatches'?'block':'none';
+    document.getElementById('pal-toggle').textContent=palMode==='wheel'?'↔ Свотчі':'↔ Колесо';
   });
 })();
 
-// ════════════════════════════════════════════════════════
-//  ГЕНЕРАТОР КАРТИ
-// ════════════════════════════════════════════════════════
+// ═══ ГЕНЕРАТОР КАРТИ ══════════════════════════════════
+const PERM=new Uint8Array(512);
+function seedP(seed){ const p=Array.from({length:256},(_,i)=>i);let s=seed|0;for(let i=255;i>0;i--){s=(s*1664525+1013904223)&0xffffffff;const j=Math.abs(s)%(i+1);[p[i],p[j]]=[p[j],p[i]];}for(let i=0;i<512;i++)PERM[i]=p[i&255]; }
+function grd(h,x,y){const hh=h&3,u=hh<2?x:y,v=hh<2?y:x;return((hh&1)?-u:u)+((hh&2)?-v:v);}
 function fade(t){return t*t*t*(t*(t*6-15)+10);}
 function lerp(a,b,t){return a+t*(b-a);}
-const PERM=new Uint8Array(512);
-function seedPerm(seed){
-  const p=Array.from({length:256},(_,i)=>i);
-  let s=seed|0;
-  for(let i=255;i>0;i--){s=(s*1664525+1013904223)&0xffffffff;const j=Math.abs(s)%(i+1);[p[i],p[j]]=[p[j],p[i]];}
-  for(let i=0;i<512;i++)PERM[i]=p[i&255];
-}
-function grad(h,x,y){const hh=h&3,u=hh<2?x:y,v=hh<2?y:x;return((hh&1)?-u:u)+((hh&2)?-v:v);}
-function noise(x,y){
-  const X=Math.floor(x)&255,Y=Math.floor(y)&255;
-  x-=Math.floor(x);y-=Math.floor(y);
-  const u=fade(x),v=fade(y),a=PERM[X]+Y,b=PERM[X+1]+Y;
-  return lerp(lerp(grad(PERM[a],x,y),grad(PERM[b],x-1,y),u),
-              lerp(grad(PERM[a+1],x,y-1),grad(PERM[b+1],x-1,y-1),u),v);
-}
-function fbm(x,y,oct=7){let v=0,a=0.5,f=1,m=0;for(let i=0;i<oct;i++){v+=noise(x*f,y*f)*a;m+=a;a*=0.48;f*=2.05;}return v/m;}
+function noise(x,y){const X=Math.floor(x)&255,Y=Math.floor(y)&255;x-=Math.floor(x);y-=Math.floor(y);const u=fade(x),v=fade(y),a=PERM[X]+Y,b2=PERM[X+1]+Y;return lerp(lerp(grd(PERM[a],x,y),grd(PERM[b2],x-1,y),u),lerp(grd(PERM[a+1],x,y-1),grd(PERM[b2+1],x-1,y-1),u),v);}
+function fbm(x,y,o=7){let v=0,a=0.5,f=1,m=0;for(let i=0;i<o;i++){v+=noise(x*f,y*f)*a;m+=a;a*=0.48;f*=2.05;}return v/m;}
 
-async function generateMap(seed){
-  const W=CANVAS_W,H=CANVAS_H;
-  seedPerm(seed);
+async function genMap(seed){
+  seedP(seed);
   const nc=4+Math.floor(((seed*7)%1000)/334);
   const centers=[];
   for(let i=0;i<nc;i++){
-    const ang=(i/nc)*Math.PI*2+((seed+i*137)%100)/100*0.9;
-    const rad=0.2+((seed*(i+3))%100)/100*0.14;
-    centers.push({x:0.5+Math.cos(ang)*rad*1.6,y:0.5+Math.sin(ang)*rad*0.65,sz:0.10+((seed*(i+13))%100)/100*0.09});
+    const ang=(i/nc)*Math.PI*2+((seed+i*137)%100)/100*.9;
+    const rad=.2+((seed*(i+3))%100)/100*.14;
+    centers.push({x:.5+Math.cos(ang)*rad*1.6,y:.5+Math.sin(ang)*rad*.65,sz:.10+((seed*(i+13))%100)/100*.09});
   }
-
+  const W=CW,H=CH, bar=document.getElementById('map-pf'), stat=document.getElementById('map-status');
   const imgData=offCtx.createImageData(W,H);
-  const bar=document.getElementById('map-progress-bar');
-  const stat=document.getElementById('map-status');
+
+  // Знаходимо код для білого і голубого заздалегідь
+  const WHITE=nearestCode(255,255,255);
+  const LIGHT_GREY=nearestCode(220,220,220);
 
   for(let py=0;py<H;py++){
-    if(py%32===0){
+    if(py%30===0){
       const pct=Math.round(py/H*100);
       if(bar)bar.style.width=pct+'%';
       if(stat)stat.textContent=`Генерую ${pct}%...`;
@@ -841,21 +773,12 @@ async function generateMap(seed){
       const nx=px/W,ny=py/H;
       let mn=Infinity;
       for(const c of centers){const dx=(nx-c.x)*(W/H),dy=ny-c.y;const d=Math.sqrt(dx*dx+dy*dy)/c.sz;if(d<mn)mn=d;}
-      const n=fbm(nx*5+seed*7e-4,ny*5+seed*9e-4);
-      const n2=fbm(nx*12+3.7,ny*12+1.3)*0.15;
-      const pol=Math.pow(Math.abs(ny-0.5)*2,1.6)*0.4;
-      const el=1-mn+n*0.5+n2-pol;
-      let r,g,b;
-      if(el>0.22){r=255;g=255;b=255;}
-      else if(el>0.10){const t=(el-0.10)/0.12;r=g=b=Math.round(lerp(200,255,t));}
-      else{
-        const dep=Math.max(0,Math.min(1,(-el+0.10)*2));
-        r=Math.round(lerp(100,20,dep));
-        g=Math.round(lerp(180,80,dep));
-        b=Math.round(lerp(255,160,dep));
-      }
-      const code=nearestCode(r,g,b);
-      pixelData[`${px}_${py}`]=code;
+      const el=1-mn+fbm(nx*5+seed*7e-4,ny*5+seed*9e-4)*.5+fbm(nx*12+3.7,ny*12+1.3)*.15-Math.pow(Math.abs(ny-.5)*2,1.6)*.4;
+      let r,g,b,code;
+      if(el>.22){ r=255;g=255;b=255; code=WHITE; }
+      else if(el>.10){ const t=(el-.10)/.12;r=g=b=Math.round(lerp(200,255,t)); code=LIGHT_GREY; }
+      else{ const dep=Math.max(0,Math.min(1,(-el+.10)*2));r=Math.round(lerp(100,20,dep));g=Math.round(lerp(180,80,dep));b=Math.round(lerp(255,160,dep)); code=nearestCode(r,g,b); }
+      pixData[`${px}_${py}`]=code;
       const ci=(py*W+px)*4;
       const hex=codeToHex(code);
       imgData.data[ci]=parseInt(hex.slice(1,3),16);
@@ -864,241 +787,177 @@ async function generateMap(seed){
       imgData.data[ci+3]=255;
     }
   }
-  offCtx.putImageData(imgData,0,0);
-  render();
+  offCtx.putImageData(imgData,0,0); render();
   if(bar)bar.style.width='100%';
   if(stat)stat.textContent=`✓ ${nc} континентів. Зберігаю...`;
 
-  // Batch save
-  const CHUNK=490;
-  const keys=Object.keys(pixelData);
-  for(let i=0;i<keys.length;i+=CHUNK){
-    const bw=writeBatch(db);
-    for(let j=i;j<Math.min(i+CHUNK,keys.length);j++){
-      const k=keys[j];
-      const[px,py]=k.split('_').map(Number);
-      bw.set(doc(db,'canvas',k),{x:px,y:py,colorCode:pixelData[k],userId:'mapgen',userEmail:'mapgen',placedAt:Date.now()});
-    }
-    await bw.commit();
-    const pct=Math.round(Math.min(i+CHUNK,keys.length)/keys.length*100);
-    if(bar)bar.style.width=pct+'%';
-    if(stat)stat.textContent=`Зберігаю... ${pct}%`;
-  }
-  if(stat){stat.textContent='✓ Готово!';setTimeout(()=>{stat.textContent='';if(bar)bar.style.width='0%';},4000);}
-}
-
-// ════════════════════════════════════════════════════════
-//  AUDIO + WAVEFORM
-// ════════════════════════════════════════════════════════
-let audioCtx=null;
-function getAudioCtx(){
-  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  return audioCtx;
-}
-
-function playFormula(formulaStr,duration=2){
-  const ac=getAudioCtx();
-  const sr=ac.sampleRate;
-  const buf=ac.createBuffer(1,sr*duration,sr);
-  const data=buf.getChannelData(0);
-  let fn;
-  try{fn=new Function('t',`"use strict";return(${formulaStr})`);}
-  catch(e){showErr('Формула: '+e.message);return;}
-  for(let i=0;i<data.length;i++){
-    const t=i/sr;
-    try{const v=fn(t);data[i]=isFinite(v)?Math.max(-1,Math.min(1,v)):0;}
-    catch{data[i]=0;}
-  }
-  const src=ac.createBufferSource();
-  src.buffer=buf;
-  src.connect(ac.destination);
-  src.start();
-  drawWaveform(data,sr);
-}
-
-function drawWaveform(data,sr){
-  const wc=document.getElementById('waveform-canvas');
-  if(!wc)return;
-  const wctx=wc.getContext('2d');
-  const W=wc.width=wc.offsetWidth||176, H=wc.height=48;
-  wctx.fillStyle='#1c1f2e';
-  wctx.fillRect(0,0,W,H);
-
-  // Показуємо перші 0.05 сек (або менше якщо коротше)
-  const showSamples=Math.min(data.length, Math.floor(sr*0.05));
-  const step=showSamples/W;
-
-  wctx.strokeStyle='#7c6af7';
-  wctx.lineWidth=1.5;
-  wctx.beginPath();
-  for(let x=0;x<W;x++){
-    const si=Math.floor(x*step);
-    const v=data[si]||0;
-    const y=(1-v)*H/2;
-    x===0?wctx.moveTo(x,y):wctx.lineTo(x,y);
-  }
-  wctx.stroke();
-
-  // Середня лінія
-  wctx.strokeStyle='rgba(255,255,255,0.1)';
-  wctx.lineWidth=1;
-  wctx.beginPath();
-  wctx.moveTo(0,H/2);
-  wctx.lineTo(W,H/2);
-  wctx.stroke();
-}
-
-function playClick(){
-  const ac=getAudioCtx();
-  const osc=ac.createOscillator();
-  const gain=ac.createGain();
-  osc.connect(gain); gain.connect(ac.destination);
-  osc.frequency.value=800;
-  gain.gain.setValueAtTime(0.05,ac.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.05);
-  osc.start(); osc.stop(ac.currentTime+0.05);
-}
-
-// ════════════════════════════════════════════════════════
-//  ТЕМИ
-// ════════════════════════════════════════════════════════
-const THEMES={
-  dark:{  '--bg':'#0b0d14','--surface':'#13151f','--surface2':'#1c1f2e','--border':'#2a2d3e','--accent':'#7c6af7'},
-  midnight:{'--bg':'#050810','--surface':'#0d1020','--surface2':'#151828','--border':'#1e2240','--accent':'#5b9cf6'},
-  forest:{ '--bg':'#080e0a','--surface':'#0f1a12','--surface2':'#162019','--border':'#1f3024','--accent':'#4caf82'},
-  rose:{   '--bg':'#120a0d','--surface':'#1f1115','--surface2':'#2a1820','--border':'#3a1f2a','--accent':'#e06090'},
-};
-function applyTheme(name){
-  const t=THEMES[name]||THEMES.dark;
-  Object.entries(t).forEach(([k,v])=>document.documentElement.style.setProperty(k,v));
-  localStorage.setItem('pixeluni_theme',name);
-}
-
-// ════════════════════════════════════════════════════════
-//  AUTH
-// ════════════════════════════════════════════════════════
-onAuthStateChanged(auth,user=>{
-  currentUser=user;
-  const status=document.getElementById('auth-status');
-  const form=document.getElementById('auth-form');
-  const logoutBtn=document.getElementById('logout-btn');
-  const cdWrap=document.getElementById('cd-wrap');
-
-  if(user){
-    // Завантажити нік з Firestore
-    getDoc(doc(db,'users',user.uid)).then(snap=>{
-      if(snap.exists()){
-        userNick=snap.data().nick||'';
-        const nd=document.getElementById('nick-display');
-        if(nd)nd.textContent=userNick?`@${userNick}`:'';
+  if(db){
+    const keys=Object.keys(pixData), CHUNK=490;
+    for(let i=0;i<keys.length;i+=CHUNK){
+      const bw=writeBatch(db);
+      for(let j=i;j<Math.min(i+CHUNK,keys.length);j++){
+        const k=keys[j],[px,py]=k.split('_').map(Number);
+        bw.set(doc(db,'canvas',k),{x:px,y:py,colorCode:pixData[k],userId:'mapgen',userEmail:'mapgen',placedAt:Date.now()});
       }
-    });
-    if(status)status.textContent=`✓ ${user.email}`;
-    if(form)form.style.display='none';
-    if(logoutBtn)logoutBtn.style.display='inline-block';
-    if(cdWrap)cdWrap.style.display='flex';
-  } else {
-    userNick='';
-    if(status)status.textContent='';
-    if(form)form.style.display='flex';
-    if(logoutBtn)logoutBtn.style.display='none';
-    if(cdWrap)cdWrap.style.display='none';
+      await bw.commit();
+      const pct=Math.round(Math.min(i+CHUNK,keys.length)/keys.length*100);
+      if(bar)bar.style.width=pct+'%';
+      if(stat)stat.textContent=`Зберігаю ${pct}%...`;
+    }
   }
-});
-
-function showErr(msg){
-  const el=document.getElementById('auth-error');
-  if(el){el.textContent=msg;el.style.display='block';setTimeout(()=>el.style.display='none',6000);}
+  if(stat){stat.textContent=`✓ Готово! ${nc} континентів`;setTimeout(()=>{stat.textContent='';if(bar)bar.style.width='0%';},5000);}
 }
-function fErr(code){
-  return({'auth/network-request-failed':'Немає з\'єднання з Firebase. Перевір: 1) firebaseConfig  2) Authorized domains у Firebase Console → Authentication → Settings',
-    'auth/invalid-api-key':'Невірний API key','auth/invalid-email':'Невірний email',
+
+// ═══ AUDIO + WAVEFORM ═════════════════════════════════
+function playFormula(str,dur=2){
+  const ac=getAC(),sr=ac.sampleRate;
+  const buf=ac.createBuffer(1,sr*dur,sr),data=buf.getChannelData(0);
+  let fn; try{fn=new Function('t',`"use strict";return(${str})`);}catch(e){showErr('Формула: '+e.message);return;}
+  for(let i=0;i<data.length;i++){const t=i/sr;try{const v=fn(t);data[i]=isFinite(v)?Math.max(-1,Math.min(1,v)):0;}catch{data[i]=0;}}
+  const src=ac.createBufferSource(); src.buffer=buf; src.connect(ac.destination); src.start();
+  drawWave(data,sr);
+}
+function drawWave(data,sr){
+  const wc=document.getElementById('waveform'); if(!wc)return;
+  const wctx=wc.getContext('2d'),W=wc.width=wc.offsetWidth||170,H=42;
+  wctx.fillStyle='var(--s2,'+'#1c1f2e)'; wctx.fillRect(0,0,W,H);
+  wctx.strokeStyle='rgba(0,0,0,0.1)'; wctx.lineWidth=1;
+  wctx.beginPath(); wctx.moveTo(0,H/2); wctx.lineTo(W,H/2); wctx.stroke();
+  const show=Math.min(data.length,Math.floor(sr*.05));
+  wctx.strokeStyle='#7c6af7'; wctx.lineWidth=1.5; wctx.beginPath();
+  for(let x=0;x<W;x++){const si=Math.floor(x*(show/W)),v=data[si]||0,y=(1-v)*H/2;x===0?wctx.moveTo(x,y):wctx.lineTo(x,y);}
+  wctx.stroke();
+}
+
+// ═══ ТЕМИ ════════════════════════════════════════════
+const THEMES={
+  light:   {'--bg':'#f0f2f8','--sf':'#ffffff','--s2':'#e8eaf0','--bd':'#d0d4e0','--tx':'#1a1c2a','--mu':'#888aaa','--ac':'#7c6af7'},
+  dark:    {'--bg':'#0b0d14','--sf':'#13151f','--s2':'#1c1f2e','--bd':'#2a2d3e','--tx':'#dde0f0','--mu':'#6b6f88','--ac':'#7c6af7'},
+  midnight:{'--bg':'#050810','--sf':'#0d1020','--s2':'#151828','--bd':'#1e2240','--tx':'#ccd0f0','--mu':'#5a5e80','--ac':'#5b9cf6'},
+  forest:  {'--bg':'#080e0a','--sf':'#0f1a12','--s2':'#162019','--bd':'#1f3024','--tx':'#d0e8d4','--mu':'#5a7a60','--ac':'#4caf82'},
+  rose:    {'--bg':'#120a0d','--sf':'#1f1115','--s2':'#2a1820','--bd':'#3a1f2a','--tx':'#f0d0d8','--mu':'#886070','--ac':'#e06090'},
+};
+function applyTheme(n){
+  Object.entries(THEMES[n]||THEMES.light).forEach(([k,v])=>document.documentElement.style.setProperty(k,v));
+  localStorage.setItem('pxuni_theme',n);
+}
+
+// ═══ ПОМИЛКИ ══════════════════════════════════════════
+function showErr(msg){
+  const el=document.getElementById('auth-status');
+  if(el){const oc=el.style.color,ot=el.textContent;el.style.color='var(--dn)';el.textContent=msg;setTimeout(()=>{el.style.color=oc;el.textContent=ot;},5000);}
+}
+function fErr(c){
+  return({'auth/network-request-failed':'Немає з\'єднання. Перевір: 1) Заповни FB у index.html  2) Firebase Console → Authentication → Settings → Authorized domains → додай d1lan354.github.io',
+    'auth/invalid-api-key':'Невірний apiKey','auth/invalid-email':'Невірний email',
     'auth/weak-password':'Пароль мін. 6 символів','auth/email-already-in-use':'Email вже зайнятий',
     'auth/user-not-found':'Користувача не знайдено','auth/wrong-password':'Невірний пароль',
-    'auth/too-many-requests':'Забагато спроб — спробуй пізніше',
-    'auth/invalid-credential':'Невірний email або пароль',
-  })[code]||code;
+    'auth/invalid-credential':'Невірний email або пароль','auth/too-many-requests':'Забагато спроб',
+  })[c]||c;
 }
 
-// ── LOGIN ──
+// ═══ AUTH ════════════════════════════════════════════
+if(auth){
+  onAuthStateChanged(auth,user=>{
+    curUser=user;
+    const status=document.getElementById('auth-status');
+    const form=document.getElementById('auth-form');
+    const lb=document.getElementById('logout-btn');
+    const cd=document.getElementById('cd-wrap');
+    const mapSec=document.getElementById('map-section');
+
+    if(user){
+      isAdmin = user.email===ADMIN_EMAIL;
+      getDoc(doc(db,'users',user.uid)).then(s=>{
+        if(s.exists()){userNick=s.data().nick||'';const nl=document.getElementById('nick-lbl');if(nl)nl.textContent=userNick?`@${userNick}`:''}
+      }).catch(()=>{});
+      if(status){status.style.color='var(--ok)';status.textContent=`✓ ${isAdmin?'👑 ':''}${user.email}`;}
+      if(form)form.style.display='none';
+      if(lb)lb.style.display='inline-block';
+      if(cd)cd.style.display='flex';
+      if(mapSec)mapSec.style.display=isAdmin?'flex':'none';
+    }else{
+      isAdmin=false; userNick='';
+      if(status){status.style.color='';status.textContent='';}
+      if(form)form.style.display='flex';
+      if(lb)lb.style.display='none';
+      if(cd)cd.style.display='none';
+      if(mapSec)mapSec.style.display='none';
+    }
+  });
+}
+
 document.getElementById('login-btn').addEventListener('click',async()=>{
-  const email=document.getElementById('email-inp').value.trim();
-  const pass=document.getElementById('pass-inp').value;
-  if(!email||!pass){showErr('Введи email і пароль');return;}
-  try{await signInWithEmailAndPassword(auth,email,pass);}
-  catch(e){showErr(fErr(e.code));}
+  if(!auth){showErr('Заповни FB_CONFIG у index.html');return;}
+  const e=document.getElementById('e-inp').value.trim();
+  const p=document.getElementById('p-inp').value;
+  if(!e||!p){showErr('Введи email і пароль');return;}
+  try{await signInWithEmailAndPassword(auth,e,p);sndOk();}catch(er){showErr(fErr(er.code));}
 });
 
-// ── LOGOUT ──
-document.getElementById('logout-btn').addEventListener('click',()=>signOut(auth));
+document.getElementById('logout-btn').addEventListener('click',()=>{if(auth)signOut(auth);});
 
-// ── REGISTER MODAL ──
 const regModal=document.getElementById('reg-modal');
-document.getElementById('reg-open-btn').addEventListener('click',()=>regModal.classList.add('open'));
-document.getElementById('reg-cancel-btn').addEventListener('click',()=>regModal.classList.remove('open'));
+document.getElementById('reg-open-btn').addEventListener('click',()=>{
+  if(!auth){showErr('Заповни FB_CONFIG у index.html');return;}
+  regModal.classList.add('open');
+});
+document.getElementById('reg-cancel').addEventListener('click',()=>regModal.classList.remove('open'));
+regModal.addEventListener('click',e=>{if(e.target===regModal)regModal.classList.remove('open');});
 
-document.getElementById('reg-submit-btn').addEventListener('click',async()=>{
-  const email=document.getElementById('reg-email').value.trim();
-  const pass=document.getElementById('reg-pass').value;
-  const nick=document.getElementById('reg-nick').value.trim();
-  const errEl=document.getElementById('reg-error');
-  errEl.style.display='none';
-
-  if(!email||!pass){errEl.textContent='Введи email і пароль';errEl.style.display='block';return;}
-  if(!nick){errEl.textContent='Введи нікнейм';errEl.style.display='block';return;}
-  if(nick.length<2){errEl.textContent='Нікнейм мін. 2 символи';errEl.style.display='block';return;}
-
+document.getElementById('reg-submit').addEventListener('click',async()=>{
+  if(!auth||!db)return;
+  const email=document.getElementById('re').value.trim();
+  const pass=document.getElementById('rp').value;
+  const nick=document.getElementById('rn').value.trim();
+  const err=document.getElementById('reg-err');
+  err.style.display='none';
+  if(!email||!pass){err.textContent='Введи email і пароль';err.style.display='block';return;}
+  if(!nick||nick.length<2){err.textContent='Нікнейм мін. 2 символи';err.style.display='block';return;}
   try{
     const cred=await createUserWithEmailAndPassword(auth,email,pass);
-    // Зберігаємо профіль у Firestore
-    await setDoc(doc(db,'users',cred.user.uid),{
-      email,nick,createdAt:Date.now(),pixelsPlaced:0
-    });
+    await setDoc(doc(db,'users',cred.user.uid),{email,nick,createdAt:Date.now(),pixelsPlaced:0});
     userNick=nick;
-    const nd=document.getElementById('nick-display');
-    if(nd)nd.textContent=`@${nick}`;
-    regModal.classList.remove('open');
-  }catch(e){
-    errEl.textContent=fErr(e.code);errEl.style.display='block';
-  }
+    const nl=document.getElementById('nick-lbl'); if(nl)nl.textContent=`@${nick}`;
+    regModal.classList.remove('open'); sndOk();
+  }catch(e){err.textContent=fErr(e.code);err.style.display='block';}
 });
 
-// ── SETTINGS ──
-const settingsOverlay=document.getElementById('settings-overlay');
-document.getElementById('settings-btn').addEventListener('click',()=>settingsOverlay.classList.add('open'));
-document.getElementById('settings-close-btn').addEventListener('click',()=>settingsOverlay.classList.remove('open'));
-settingsOverlay.addEventListener('click',e=>{if(e.target===settingsOverlay)settingsOverlay.classList.remove('open');});
-
+// SETTINGS
+const settModal=document.getElementById('sett-modal');
+document.getElementById('sett-btn').addEventListener('click',()=>settModal.classList.add('open'));
+document.getElementById('sett-close').addEventListener('click',()=>settModal.classList.remove('open'));
+settModal.addEventListener('click',e=>{if(e.target===settModal)settModal.classList.remove('open');});
 document.getElementById('cfg-grid').addEventListener('change',e=>{cfg.grid=e.target.checked;render();});
 document.getElementById('cfg-ripple').addEventListener('change',e=>{cfg.ripple=e.target.checked;});
-document.getElementById('cfg-sound').addEventListener('change',e=>{cfg.sound=e.target.checked;});
+document.getElementById('cfg-click-snd').addEventListener('change',e=>{cfg.clickSnd=e.target.checked;});
+document.getElementById('cfg-shift-snd').addEventListener('change',e=>{cfg.shiftSnd=e.target.checked;});
+document.getElementById('cfg-eye-snd').addEventListener('change',e=>{cfg.eyeSnd=e.target.checked;});
 document.getElementById('cfg-theme').addEventListener('change',e=>applyTheme(e.target.value));
 
-// ── MAP GEN ──
-document.getElementById('gen-map-btn').addEventListener('click',()=>{
-  if(!currentUser){showErr('Увійди для генерації карти');return;}
+// MAP MODAL (admin only)
+const mapModal=document.getElementById('map-modal');
+document.getElementById('open-mapgen-btn').addEventListener('click',()=>{settModal.classList.remove('open');mapModal.classList.add('open');});
+document.getElementById('map-close').addEventListener('click',()=>mapModal.classList.remove('open'));
+document.getElementById('gen-btn').addEventListener('click',()=>{
+  if(!isAdmin){showErr('Тільки для адміна');return;}
   const seedEl=document.getElementById('map-seed');
   const seed=seedEl.value?parseInt(seedEl.value):Math.random()*99999|0;
-  seedEl.value=seed;
-  generateMap(seed);
+  seedEl.value=seed; genMap(seed);
 });
 
-// ── AUDIO ──
-document.getElementById('play-audio-btn').addEventListener('click',()=>{
+// AUDIO
+document.getElementById('play-btn').addEventListener('click',()=>{
   playFormula(document.getElementById('audio-formula').value);
 });
 
-// ════════════════════════════════════════════════════════
-//  INIT
-// ════════════════════════════════════════════════════════
-// Відновити тему
-const savedTheme=localStorage.getItem('pixeluni_theme')||'dark';
+// INIT
+const savedTheme=localStorage.getItem('pxuni_theme')||'light';
 applyTheme(savedTheme);
 document.getElementById('cfg-theme').value=savedTheme;
 
-// Запустити
+setSel('cfo'); // білий за замовчуванням
 initCanvas();
-startCdTimer();
 </script>
 </body>
 </html>
